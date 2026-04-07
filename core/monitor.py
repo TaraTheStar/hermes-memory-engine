@@ -1,5 +1,6 @@
 import datetime
 import uuid
+import statistics
 from typing import Dict, List, Any, Optional, Set
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -13,24 +14,19 @@ class StateTracker:
     """
     def __init__(self, structural_db_path: str):
         self.engine = create_engine(f"sqlite:///{structural_db_path}")
-        # Ensure the monitoring tables are created
-        from core.monitor_models import Base as MonitorBase
-        MonitorBase.metadata.create_all(self.engine)
+        from core.monitor_models import MonitoringBase
+        MonitoringBase.metadata.create_all(self.engine)
         
         self.Session = sessionmaker(bind=self.engine)
         self.analyzer = GraphAnalyzer(structural_db_path)
 
     def capture_snapshot(self) -> GraphSnapshot:
-        """
-        Analyzes the current graph and saves a snapshot to the database.
-        """
         print("[StateTracker] Capturing graph snapshot...")
         self.analyzer.build_graph()
         
         metrics = self.analyzer.get_centrality_metrics()
         communities = self.analyzer.detect_communities()
         
-        # Calculate density: edges / (nodes * (nodes - 1))
         nodes_count = len(self.analyzer.graph.nodes)
         edges_count = len(self.analyzer.graph.edges)
         density = 0.0
@@ -65,70 +61,78 @@ class AnomalyDetector:
     """
     def __init__(self, structural_db_path: str, sensitivity: float = 2.0):
         self.engine = create_engine(f"sqlite:///{structural_db_path}")
-        self.Session = sessionmaker(bind=self.engine)
-        self.sensitivity = sensitivity  # Sigma threshold for anomaly detection
+        self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
+        self.sensitivity = sensitivity
 
     def detect_anomalies(self, current_snapshot: GraphSnapshot) -> List[AnomalyEvent]:
-        """
-        Scans historical snapshots to find statistical deviations.
-        """
         print("[AnomalyDetector] Scanning for structural anomalies...")
         anomalies = []
         session = self.Session()
         
         try:
-            # 1. Get historical snapshots (excluding the current one)
+            # 1. Get historical snapshots (excluding current)
             history = session.query(GraphSnapshot).filter(
                 GraphSnapshot.timestamp < current_snapshot.timestamp
             ).order_by(GraphSnapshot.timestamp.desc()).all()
 
-            if len(history) < 3:
+            if len(history) < 2:
                 print("[AnomalyDetector] Insufficient history for statistical analysis. Skipping.")
                 return []
 
-            # --- HEURISTIC 1: Hub Emergence (Centrality Spike) ---
-            # We look for nodes whose degree centrality has spiked significantly
+            # --- HEURISTIC 1: Hub Emergence (Centrality Spike or New Hub) ---
+            # We look for nodes whose centrality has spiked OR new nodes with high degree.
             for node_id, node_metrics in current_snapshot.centrality_metrics.items():
                 current_degree = node_metrics.get('degree', 0.0)
                 
-                # Calculate mean and std of degree centrality for this node across history
+                # Get historical degrees for this specific node
                 historical_degrees = []
                 for snap in history:
                     hist_metrics = snap.centrality_metrics.get(node_id, {})
                     if hist_metrics:
                         historical_degrees.append(hist_metrics.get('degree', 0.0))
                 
-                if len(historical_degrees) >= 3:
-                    import statistics
+                # Case A: New Node with High Degree (Immediate Hub Emergence)
+                if not historical_degrees and current_degree > 5.0:
+                    anomalies.append(AnomalyEvent(
+                        id=str(uuid.uuid4()),
+                        anomaly_type="HUB_EMERGENCE",
+                        description=f"New node '{node_id}' has emerged as an immediate hub with degree {current_degree:.2f}.",
+                        severity="high",
+                        trigger_data={"node_id": node_id, "new_degree": current_degree, "is_new": True}
+                    ))
+                    continue # Skip to next node
+
+                # Case B: Existing Node with Centrality Spike
+                if len(historical_degrees) >= 2:
                     mean_deg = statistics.mean(historical_degrees)
                     stdev_deg = statistics.stdev(historical_degrees) if len(historical_degrees) > 1 else 0.0
                     
-                    # If current degree is > mean + (sensitivity * stdev)
-                    if current_degree > (mean_deg + (self.sensitivity * stdev_deg)) and current_degree > 0.1:
-                        event = AnomalyEvent(
+                    # Check for spike: current > mean + (sensitivity * stdev)
+                    # Also add a small baseline to prevent division by zero or trivial spikes
+                    threshold = max(mean_deg + (self.sensitivity * stdev_deg), mean_deg + 0.3)
+                    
+                    if current_degree > threshold:
+                        anomalies.append(AnomalyEvent(
                             id=str(uuid.uuid4()),
                             anomaly_type="HUB_EMERGENCE",
                             description=f"Node '{node_id}' has emerged as a significant hub. (Degree: {current_degree:.2f}, Hist Mean: {mean_deg:.2f})",
                             severity="medium",
                             trigger_data={"node_id": node_id, "new_degree": current_degree, "mean_degree": mean_deg}
-                        )
-                        anomalies.append(event)
+                        ))
 
-            # --- HEURISTIC 2: Community Shifts (Community Count) ---
-            # A sudden change in the number of communities
+            # --- HEURISTIC 2: Community Shifts ---
             historical_counts = [s.community_count for s in history]
             mean_comm = sum(historical_counts) / len(historical_counts)
             
-            if abs(current_snapshot.community_count - mean_comm) > 2: # Threshold of 2 communities
+            if abs(current_snapshot.community_count - mean_comm) >= 1: 
                 anomalies.append(AnomalyEvent(
                     id=str(uuid.uuid4()),
                     anomaly_type="COMMUNITY_SHIFT",
-                    description=f"Significant shift in graph structure: Community count changed from ~{mean_comm:.1f} to {current_snapshot.community_count}.",
+                    description=f"Significant shift in community structure: Count changed from ~{mean_comm:.1f} to {current_snapshot.community_count}.",
                     severity="medium",
                     trigger_data={"old_count": mean_comm, "new_count": current_snapshot.community_count}
                 ))
 
-            # Save detected anomalies
             if anomalies:
                 for anomaly in anomalies:
                     session.add(anomaly)

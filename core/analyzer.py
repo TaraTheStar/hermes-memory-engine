@@ -45,8 +45,8 @@ class GraphAnalyzer:
         if len(self.graph.nodes) == 0:
             return {}
 
-        # Degree Centrality: How many connections a node has.
-        degree = nx.degree_centrality(self.graph)
+        # Degree: The raw number of connections a node has.
+        degree = dict(self.graph.degree())
         
         # Betweenness Centrality: How often a node acts as a bridge.
         betweenness = nx.betweenness_centrality(self.graph)
@@ -60,7 +60,7 @@ class GraphAnalyzer:
         metrics = {}
         for node in self.graph.nodes:
             metrics[node] = {
-                "degree": degree.get(node, 0.0),
+                "degree": float(degree.get(node, 0.0)),
                 "betweenness": betweenness.get(node, 0.0),
                 "eigenvector": eigenvector.get(node, 0.0)
             }

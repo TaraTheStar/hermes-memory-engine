@@ -1,6 +1,6 @@
 import uuid
 import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from core.models import Base
@@ -17,7 +17,7 @@ class InsightTrigger:
         self.Session = sessionmaker(bind=self.engine)
         self.orchestrator = orchestrator
 
-    def process_new_anomalies(self):
+    async def process_new_anomalies(self):
         """
         Fetches unhandled anomalies and triggers orchestration for each.
         """
@@ -38,8 +38,7 @@ class InsightTrigger:
                 if goal:
                     print(f"[InsightTrigger] -> Triggering Orchestrator with goal: '{goal}'")
                     # Trigger the orchestrator asynchronously
-                    import asyncio
-                    asyncio.run(self.orchestrator.run_goal(goal))
+                    await self.orchestrator.run_goal(goal)
                 else:
                     print(f"[InsightTrigger] Could not generate goal for anomaly: {anomaly.anomaly_type}")
 
@@ -74,4 +73,3 @@ class InsightTrigger:
 
         # Fallback generic goal
         return f"Perform a deep structural audit in response to a detected {a_type} event: {anomaly.description}"
-

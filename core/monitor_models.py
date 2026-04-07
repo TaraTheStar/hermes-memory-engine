@@ -1,11 +1,9 @@
 import datetime
 from typing import Dict, List, Any, Optional
-from sqlalchemy import Column, String, Float, DateTime, JSON, create_engine
+from sqlalchemy import Column, String, Float, DateTime, JSON, Integer, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from core.models import Base
 
-# New Base for Monitoring models to keep them logically separated if needed, 
-# but we can also just use the main Base for simplicity in this prototype.
+# New Base for Monitoring models
 MonitoringBase = declarative_base()
 
 class GraphSnapshot(MonitoringBase):
@@ -42,8 +40,3 @@ class AnomalyEvent(MonitoringBase):
     
     # The raw data that triggered the anomaly for debugging/audit
     trigger_data = Column(JSON)
-
-from sqlalchemy import Integer
-
-# Re-importing to ensure everything is correctly linked to the same registry if using one Base
-# For this prototype, we will use the primary Base from core.models

@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from domain.supporting.ledger import StructuralLedger
 from application.orchestrator import Orchestrator
@@ -50,22 +51,54 @@ class RefinementOrchestrator:
 
         return executed_count
 
+    # Minimum aggregate confidence from agents to approve a proposal.
+    APPROVAL_CONFIDENCE_THRESHOLD = 0.5
+
+    # Phrases that veto approval regardless of confidence.
+    _VETO_PHRASES = re.compile(
+        r'\b(reject|dangerous|unsafe|do not proceed|abort)\b',
+        re.IGNORECASE
+    )
+    # Negation prefixes that neutralize a veto phrase.
+    _NEGATION_PREFIX = re.compile(
+        r'\b(not|no|neither|never|isn\'t|aren\'t|wasn\'t|doesn\'t|don\'t)\b',
+        re.IGNORECASE
+    )
+
     def _is_approved(self, audit_result: Dict[str, Any]) -> bool:
-        # Prototype logic: assume success if no explicit error found in findings
+        summary = audit_result.get('orchestration_summary', {})
+        confidence = summary.get('aggregate_confidence', 0.0)
+
+        if confidence < self.APPROVAL_CONFIDENCE_THRESHOLD:
+            logger.info("Approval denied: confidence %.2f below threshold %.2f",
+                        confidence, self.APPROVAL_CONFIDENCE_THRESHOLD)
+            return False
+
         for finding in audit_result.get('agent_findings', []):
-            if "REJECT" in str(finding).upper() or "DANGEROUS" in str(finding).upper():
+            text = str(finding.get('finding', ''))
+            if self._contains_unmitigated_veto(text):
+                logger.info("Approval denied: veto phrase found in finding")
                 return False
+
         return True
+
+    def _contains_unmitigated_veto(self, text: str) -> bool:
+        """Returns True if text contains a veto phrase NOT preceded by a negation."""
+        for match in self._VETO_PHRASES.finditer(text):
+            # Check the 30 characters before the match for a negation word
+            start = max(0, match.start() - 30)
+            preceding = text[start:match.start()]
+            if not self._NEGATION_PREFIX.search(preceding):
+                return True
+        return False
 
     async def _execute_proposal(self, proposal: RefinementProposal):
         """
         Applies the change to the Structural Ledger.
         """
         logger.info("Executing %s...", proposal.proposal_type)
-        session = self.ledger.Session()
-        try:
+        with self.ledger.session_scope() as session:
             if proposal.proposal_type == "PRUNE_EDGE":
-                # Parse target_id: "source->target"
                 u, v = proposal.target_id.split("->")
                 session.query(RelationalEdge).filter(
                     (RelationalEdge.source_id == u) & (RelationalEdge.target_id == v)
@@ -73,19 +106,10 @@ class RefinementOrchestrator:
                 logger.info("Edge %s <-> %s pruned.", u, v)
 
             elif proposal.proposal_type == "MERGE_COMMUNITY":
-                # Prototype logic: We don't actually implement the complex merge logic yet,
-                # we just log that the intention was captured.
                 logger.info("[SIMULATED] Community condensation triggered for %s.", proposal.target_id)
 
             elif proposal.proposal_type == "GLOBAL_REBALANCE":
                 logger.info("[SIMULATED] Global rebalancing triggered.")
-
-            session.commit()
-        except Exception as e:
-            logger.error("Execution failed: %s", e)
-            session.rollback()
-        finally:
-            session.close()
 
 if __name__ == "__main__":
     import asyncio

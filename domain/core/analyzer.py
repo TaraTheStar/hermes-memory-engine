@@ -14,29 +14,16 @@ class GraphAnalyzer:
         Nodes represent entities (Skill, Milestone, Project), 
         and edges represent RelationalEdges.
         """
-        session = self.ledger.Session()
-        try:
-            # 1. Add all edges from the ledger
+        with self.ledger.session_scope() as session:
             edges = session.query(RelationalEdge).all()
-            
+
             for edge in edges:
-                # We use the source_id and target_id as node identifiers.
-                # In a more advanced version, we'd store the node type to allow 
-                # for richer graph attributes.
                 self.graph.add_edge(
-                    edge.source_id, 
-                    edge.target_id, 
-                    type=edge.relationship_type, 
+                    edge.source_id,
+                    edge.target_id,
+                    type=edge.relationship_type,
                     weight=edge.weight
                 )
-            
-            # 2. Enrich nodes with metadata (optional but useful for analysis)
-            # For this prototype, we'll just ensure all entities mentioned in edges are in the graph.
-            # A more robust implementation would query all entities (Skills, Milestones, etc.)
-            # to ensure even isolated nodes are present.
-            
-        finally:
-            session.close()
 
     def get_centrality_metrics(self) -> Dict[str, Dict[str, float]]:
         """

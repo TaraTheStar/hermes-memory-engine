@@ -1,11 +1,10 @@
 import logging
 from typing import Dict, Any
-from sqlalchemy import create_engine
 
 logger = logging.getLogger(__name__)
-from sqlalchemy.orm import sessionmaker
 from domain.supporting.monitor_models import AnomalyEvent
 from domain.core.ports import GoalRunner
+from domain.supporting.ledger import StructuralLedger
 
 class InsightTrigger:
     """
@@ -13,16 +12,14 @@ class InsightTrigger:
     Translates mathematical events into actionable investigation goals.
     """
     def __init__(self, structural_db_path: str, goal_runner: GoalRunner):
-        self.engine = create_engine(f"sqlite:///{structural_db_path}")
-        self.Session = sessionmaker(bind=self.engine)
+        self.ledger = StructuralLedger(structural_db_path)
         self.goal_runner = goal_runner
 
     async def process_new_anomalies(self, context: Dict[str, Any]):
         """
         Fetches unhandled anomalies and triggers orchestration for each.
         """
-        session = self.Session()
-        try:
+        with self.ledger.session_scope() as session:
             unprocessed = session.query(AnomalyEvent).filter(
                 AnomalyEvent.processed == False
             ).order_by(AnomalyEvent.timestamp.desc()).limit(5).all()
@@ -30,7 +27,7 @@ class InsightTrigger:
             if not unprocessed:
                 logger.info("No unprocessed anomalies to handle.")
                 return
-            
+
             logger.info("Found %d unprocessed anomalies. Generating investigation goals...", len(unprocessed))
 
             for anomaly in unprocessed:
@@ -42,13 +39,6 @@ class InsightTrigger:
                     logger.warning("Could not generate goal for anomaly: %s", anomaly.anomaly_type)
 
                 anomaly.processed = True
-
-            session.commit()
-
-        except Exception as e:
-            logger.error("Error processing anomalies: %s", e)
-        finally:
-            session.close()
 
     def _generate_goal_from_anomaly(self, anomaly: AnomalyEvent) -> str:
         """

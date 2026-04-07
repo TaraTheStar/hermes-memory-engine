@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, JSON
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import Dict, Any
 
@@ -26,10 +26,10 @@ class Project(Base):
     __tablename__ = 'projects'
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, unique=True)
     repository_url = Column(String, nullable=True)
     status = Column(String, default='active')
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     milestones = relationship("Milestone", back_populates="project")
 
@@ -37,7 +37,7 @@ class Milestone(Base):
     __tablename__ = 'milestones'
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
     importance_score = Column(Float, default=1.0)
@@ -49,7 +49,7 @@ class Skill(Base):
     __tablename__ = 'skills'
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, unique=True)
     description = Column(String, nullable=True)
     proficiency_level = Column(Float, default=0.1)
     last_used = Column(DateTime, nullable=True)
@@ -58,10 +58,10 @@ class IdentityMarker(Base):
     __tablename__ = 'identity_markers'
 
     id = Column(String, primary_key=True, default=generate_uuid)
-    key = Column(String, nullable=False)
+    key = Column(String, nullable=False, unique=True)
     value = Column(String, nullable=False)
     confidence_score = Column(Float, default=1.0)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class RelationalEdge(Base):
     __tablename__ = 'relational_edges'
@@ -71,4 +71,4 @@ class RelationalEdge(Base):
     target_id = Column(String, nullable=False)
     relationship_type = Column(String, nullable=False)
     weight = Column(Float, default=1.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

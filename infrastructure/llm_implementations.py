@@ -76,43 +76,8 @@ class MockLLMInterface(BaseLLMInterface):
 
         return "\n\n".join(responses)
 
-class OpenAIImplementation(BaseLLMInterface):
-    """
-    A real implementation of the OpenAI interface that connects to a 
-    local or remote OpenAI-compatible server using the system config.
-    """
-    def __init__(self):
-        config = ConfigLoader().get_delegation_config()
-        self.base_url = config.get('base_url')
-        self.api_key = config.get('api_key')
-        self.model_name = config.get('model')
-        self.translator = LLMTranslator()
-
-        if not self.base_url or not self.api_key:
-            raise ValueError("Incomplete delegation config: base_url and api_key are required.")
-
-        self.client = OpenAI(
-            base_url=self.base_url,
-            api_key=self.api_key
-        )
-
-    def complete(self, prompt: str, system_prompt: str = None) -> str:
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                temperature=0.7
-            )
-            return self.translator.transform_data(response.choices[0].message.content)
-        except Exception as e:
-            event = self.translator.translate_exception(e)
-            logger.error("Caught LLM exception: %s", event)
-            raise LLMInfrastructureError(event) from e
+# Alias for backwards compatibility — identical to LocalLLMImplementation.
+OpenAIImplementation = LocalLLMImplementation
 
 class TemplateLLMInterface(BaseLLMInterface):
     """

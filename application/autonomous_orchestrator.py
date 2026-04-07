@@ -8,9 +8,7 @@ from domain.core.semantic_memory import SemanticMemory
 from domain.core.insight_trigger import InsightTrigger
 from domain.supporting.ledger import StructuralLedger
 
-# Setup basic logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("AutonomousOrchestrator")
+logger = logging.getLogger(__name__)
 
 class AutonomousOrchestrator(Orchestrator, GoalRunner):
     """

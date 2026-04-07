@@ -23,16 +23,8 @@ class ContextualAnomalyDetector:
             return self._profiles[context_id]
         return self._profiles.get(self.GLOBAL_CONTEXT, ThresholdProfile(name="default_global"))
 
-    def evaluate_metric(self, metric_type: MetricType, current_value: float, context_id: str = "global", historical_values: Optional[List[float]] = None) -> Optional[DomainEvent]:
-        """
-        Evaluates a metric against the profile of the provided context.
-        Uses Z-score analysis when historical data is available, falling back
-        to simple threshold comparison otherwise.
-        Returns a PatternDetectedEvent if an anomaly is detected, otherwise None.
-        """
-        if historical_values and len(historical_values) >= 3:
-            return self.evaluate_complex_anomaly(metric_type, current_value, context_id, historical_values)
-
+    def _evaluate_simple_threshold(self, metric_type: MetricType, current_value: float, context_id: str = "global") -> Optional[DomainEvent]:
+        """Simple threshold comparison against the context profile."""
         profile = self._get_profile(context_id)
         threshold = profile.thresholds.get(metric_type)
 
@@ -56,13 +48,24 @@ class ContextualAnomalyDetector:
 
         return None
 
+    def evaluate_metric(self, metric_type: MetricType, current_value: float, context_id: str = "global", historical_values: Optional[List[float]] = None) -> Optional[DomainEvent]:
+        """
+        Evaluates a metric against the profile of the provided context.
+        Uses Z-score analysis when historical data is available, falling back
+        to simple threshold comparison otherwise.
+        Returns a PatternDetectedEvent if an anomaly is detected, otherwise None.
+        """
+        if historical_values and len(historical_values) >= 3:
+            return self.evaluate_complex_anomaly(metric_type, current_value, context_id, historical_values)
+
+        return self._evaluate_simple_threshold(metric_type, current_value, context_id)
+
     def evaluate_complex_anomaly(self, metric_type: MetricType, current_value: float, context_id: str = "global", historical_values: List[float] = None) -> Optional[DomainEvent]:
         """
         Advanced evaluation using statistical deviation (Sigma/Z-Score).
         """
         if not historical_values or len(historical_values) < 3:
-            # Fall back to simple threshold if not enough history
-            return self.evaluate_metric(metric_type, current_value, context_id)
+            return self._evaluate_simple_threshold(metric_type, current_value, context_id)
 
         profile = self._get_profile(context_id)
         

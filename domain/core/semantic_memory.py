@@ -87,22 +87,29 @@ class SemanticMemory:
     def list_events(self, limit: int = 10, context_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Lists the most recent events, optionally scoped to a bounded context.
+        Results are sorted by timestamp descending (most recent first).
         """
-        # Note: We do not use the 'where' clause here to ensure we get the absolute latest,
-        # then we manually filter.
-        results = self.collection.get(limit=limit)
+        # Fetch a wider set to account for context filtering reducing the count.
+        fetch_limit = limit * 5 if context_id else limit
+        results = self.collection.get(limit=fetch_limit)
         formatted_results = []
         for i in range(len(results['ids'])):
             metadata = results['metadatas'][i]
             if context_id and metadata.get("context_id") != context_id:
                 continue
-                
+
             formatted_results.append({
                 "id": results['ids'][i],
                 "text": results['documents'][i],
                 "metadata": metadata
             })
-        return formatted_results
+
+        # Sort by timestamp descending so callers get the most recent events.
+        formatted_results.sort(
+            key=lambda e: e["metadata"].get("timestamp", ""),
+            reverse=True
+        )
+        return formatted_results[:limit]
 
     def list_events_by_context(self, context_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """

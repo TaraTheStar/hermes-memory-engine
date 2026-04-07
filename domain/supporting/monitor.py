@@ -2,6 +2,7 @@ import datetime
 import logging
 import uuid
 import statistics
+from contextlib import contextmanager
 from typing import Dict, List, Any, Optional, Set
 
 logger = logging.getLogger(__name__)
@@ -19,17 +20,29 @@ class StateTracker:
         self.engine = create_engine(f"sqlite:///{structural_db_path}")
         from domain.supporting.monitor_models import MonitoringBase
         MonitoringBase.metadata.create_all(self.engine)
-        
+
         self.Session = sessionmaker(bind=self.engine)
         self.analyzer = GraphAnalyzer(structural_db_path)
+
+    @contextmanager
+    def _session_scope(self):
+        session = self.Session()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def capture_snapshot(self) -> GraphSnapshot:
         logger.info("Capturing graph snapshot...")
         self.analyzer.build_graph()
-        
+
         metrics = self.analyzer.get_centrality_metrics()
         communities = self.analyzer.detect_communities()
-        
+
         nodes_count = len(self.analyzer.graph.nodes)
         edges_count = len(self.analyzer.graph.edges)
         density = 0.0
@@ -38,25 +51,17 @@ class StateTracker:
 
         snapshot = GraphSnapshot(
             id=str(uuid.uuid4()),
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc),
             density=density,
             community_count=len(communities),
             centrality_metrics=metrics,
             metadata_tags={"node_count": nodes_count, "edge_count": edges_count}
         )
 
-        session = self.Session()
-        try:
+        with self._session_scope() as session:
             session.add(snapshot)
-            session.commit()
             logger.info("Snapshot saved: %s (Nodes: %d, Communities: %d)", snapshot.id, nodes_count, len(communities))
             return snapshot
-        except Exception as e:
-            session.rollback()
-            logger.error("Error saving snapshot: %s", e)
-            raise
-        finally:
-            session.close()
 
 class AnomalyDetector:
     """
@@ -69,13 +74,23 @@ class AnomalyDetector:
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.sensitivity = sensitivity
 
+    @contextmanager
+    def _session_scope(self):
+        session = self.Session()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
     def detect_anomalies(self, current_snapshot: GraphSnapshot) -> List[AnomalyEvent]:
         logger.info("Scanning for structural anomalies...")
         anomalies = []
-        session = self.Session()
-        
-        try:
-            # 1. Get historical snapshots (excluding current)
+
+        with self._session_scope() as session:
             history = session.query(GraphSnapshot).filter(
                 GraphSnapshot.timestamp < current_snapshot.timestamp
             ).order_by(GraphSnapshot.timestamp.desc()).all()
@@ -84,19 +99,15 @@ class AnomalyDetector:
                 logger.info("Insufficient history for statistical analysis. Skipping.")
                 return []
 
-            # --- HEURISTIC 1: Hub Emergence (Centrality Spike or New Hub) ---
-            # We look for nodes whose centrality has spiked OR new nodes with high degree.
             for node_id, node_metrics in current_snapshot.centrality_metrics.items():
                 current_degree = node_metrics.get('degree', 0.0)
-                
-                # Get historical degrees for this specific node
+
                 historical_degrees = []
                 for snap in history:
                     hist_metrics = snap.centrality_metrics.get(node_id, {})
                     if hist_metrics:
                         historical_degrees.append(hist_metrics.get('degree', 0.0))
-                
-                # Case A: New Node with High Degree (Immediate Hub Emergence)
+
                 if not historical_degrees and current_degree > 5.0:
                     anomalies.append(AnomalyEvent(
                         id=str(uuid.uuid4()),
@@ -105,17 +116,14 @@ class AnomalyDetector:
                         severity="high",
                         trigger_data={"node_id": node_id, "new_degree": current_degree, "is_new": True}
                     ))
-                    continue # Skip to next node
+                    continue
 
-                # Case B: Existing Node with Centrality Spike
                 if len(historical_degrees) >= 2:
                     mean_deg = statistics.mean(historical_degrees)
                     stdev_deg = statistics.stdev(historical_degrees) if len(historical_degrees) > 1 else 0.0
-                    
-                    # Check for spike: current > mean + (sensitivity * stdev)
-                    # Also add a small baseline to prevent division by zero or trivial spikes
+
                     threshold = max(mean_deg + (self.sensitivity * stdev_deg), mean_deg + 0.3)
-                    
+
                     if current_degree > threshold:
                         anomalies.append(AnomalyEvent(
                             id=str(uuid.uuid4()),
@@ -125,11 +133,10 @@ class AnomalyDetector:
                             trigger_data={"node_id": node_id, "new_degree": current_degree, "mean_degree": mean_deg}
                         ))
 
-            # --- HEURISTIC 2: Community Shifts ---
             historical_counts = [s.community_count for s in history]
             mean_comm = sum(historical_counts) / len(historical_counts)
-            
-            if abs(current_snapshot.community_count - mean_comm) >= 1: 
+
+            if abs(current_snapshot.community_count - mean_comm) >= 1:
                 anomalies.append(AnomalyEvent(
                     id=str(uuid.uuid4()),
                     anomaly_type="COMMUNITY_SHIFT",
@@ -141,15 +148,8 @@ class AnomalyDetector:
             if anomalies:
                 for anomaly in anomalies:
                     session.add(anomaly)
-                session.commit()
                 logger.info("Detected %d anomalies.", len(anomalies))
             else:
                 logger.info("No significant anomalies detected.")
 
             return anomalies
-
-        except Exception as e:
-            logger.error("Error during detection: %s", e)
-            raise
-        finally:
-            session.close()

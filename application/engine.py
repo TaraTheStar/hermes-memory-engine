@@ -1,7 +1,7 @@
 import os
 from typing import List, Dict, Any, Optional
 from domain.core.semantic_memory import SemanticMemory
-from domain.core.models import Event
+from domain.core.models import Event, Project, Milestone, Skill, IdentityMarker, RelationalEdge
 
 # Note: In a real deployment, EventExtractor would call an LLM API.
 # Here, I am designing the interface so that I (the agent) can 
@@ -14,26 +14,30 @@ class EventExtractor:
     Responsible for analyzing text and identifying meaningful events using heuristic patterns.
     In a production environment, this would be replaced by an LLM-driven extraction process.
     """
+    # Max characters to capture as the subject of an extracted event.
+    _SUBJECT_PATTERN = r"([^.!?\n]{1,100})"
+
     def __init__(self):
+        subj = self._SUBJECT_PATTERN
         self.patterns = [
             {
                 "type": "preference",
-                "regex": r"(prefer|like|dislike|hate|want|don't like|love|interest in|fascinated by)\s+([^.!?]+)",
+                "regex": rf"(prefer|like|dislike|hate|want|don't like|love|interest in|fascinated by)\s+{subj}",
                 "description": "Identifies user preferences and interests."
             },
             {
                 "type": "milestone",
-                "regex": r"(finished|completed|merged|achieved|accomplished|reached)\s+([^.!?]+)",
+                "regex": rf"(finished|completed|merged|achieved|accomplished|reached)\s+{subj}",
                 "description": "Identifies significant achievements or completed tasks."
             },
             {
                 "type": "skill",
-                "regex": r"(learned|mastered|skilled at|know how to|become proficient in)\s+([^.!?]+)",
+                "regex": rf"(learned|mastered|skilled at|know how to|become proficient in)\s+{subj}",
                 "description": "Identifies new skill acquisitions."
             },
             {
                 "type": "identity_marker",
-                "regex": r"(my name is|i am|call me|identify as)\s+([^.!?]+)",
+                "regex": rf"(my name is|i am|call me|identify as)\s+{subj}",
                 "description": "Identifies identity markers and persona elements."
             }
         ]
@@ -114,81 +118,104 @@ class MemoryEngine:
                 metadata=event.to_dict()
             )
 
+    # Maps ID prefix to the method that resolves structural context for that entity type.
+    _ENTITY_RESOLVERS = {
+        "proj_": "_resolve_project",
+        "ms_": "_resolve_milestone",
+        "sk_": "_resolve_skill",
+        "id_": "_resolve_identity_marker",
+    }
+
     def query(self, query_text: str, n_results: int = 3) -> List[Dict[str, Any]]:
         semantic_results = self.semantic_memory.query_context(query_text, n_results=n_results)
         enriched_results = []
-        for res in semantic_results:
-            enriched_item = res.copy()
-            structural_id = res['metadata'].get('structural_id')
-            if structural_id:
-                entity_context = {}
-                from domain.core.models import Project, Milestone, Skill, IdentityMarker
-                session = self.ledger.Session()
-                try:
-                    if structural_id.startswith("proj_"):
-                        project = session.query(Project).filter_by(id=structural_id).first()
-                        if project:
-                            entity_context = {
-                                "type": "project",
-                                "id": project.id,
-                                "name": project.name,
-                                "repository_url": project.repository_url,
-                                "status": project.status,
-                                "milestones": [{"id": m.id, "title": m.title} for m in project.milestones]
-                            }
-                            # Neighbor Expansion: Add connected skills
-                            from domain.core.models import RelationalEdge, Skill
-                            edges = session.query(RelationalEdge).filter_by(source_id=project.id).all()
-                            connected_skill_ids = [e.target_id for e in edges if e.relationship_type == "uses_skill"]
-                            if connected_skill_ids:
-                                skills = session.query(Skill).filter(Skill.id.in_(connected_skill_ids)).all()
-                                entity_context["skills"] = [{"id": s.id, "name": s.name} for s in skills]
-                    elif structural_id.startswith("ms_"):
-                        milestone = session.query(Milestone).filter_by(id=structural_id).first()
-                        if milestone:
-                            entity_context = {
-                                "type": "milestone",
-                                "id": milestone.id,
-                                "title": milestone.title,
-                                "description": milestone.description,
-                                "project_id": milestone.project_id
-                            }
-                            # Neighbor Expansion: Add parent project
-                            if milestone.project_id:
-                                project = session.query(Project).filter_by(id=milestone.project_id).first()
-                                if project:
-                                    entity_context["parent_project"] = {"id": project.id, "name": project.name}
-                    elif structural_id.startswith("sk_"):
-                        skill = session.query(Skill).filter_by(id=structural_id).first()
-                        if skill:
-                            entity_context = {
-                                "type": "skill",
-                                "id": skill.id,
-                                "name": skill.name,
-                                "description": skill.description,
-                                "proficiency_level": skill.proficiency_level
-                            }
-                            # Neighbor Expansion: Add projects that use this skill
-                            from domain.core.models import RelationalEdge, Project
-                            edges = session.query(RelationalEdge).filter_by(target_id=skill.id, relationship_type="uses_skill").all()
-                            if edges:
-                                project_ids = [e.source_id for e in edges]
-                                projects = session.query(Project).filter(Project.id.in_(project_ids)).all()
-                                entity_context["used_in_projects"] = [{"id": p.id, "name": p.name} for p in projects]
-                    elif structural_id.startswith("id_"):
-                        marker = session.query(IdentityMarker).filter_by(id=structural_id).first()
-                        if marker:
-                            entity_context = {
-                                "type": "identity_marker",
-                                "id": marker.id,
-                                "key": marker.key,
-                                "value": marker.value,
-                                "confidence_score": marker.confidence_score
-                            }
-                except Exception as e:
-                    entity_context = {"error": str(e)}
-                finally:
-                    session.close()
-                enriched_item['structural_context'] = entity_context
-            enriched_results.append(enriched_item)
+
+        with self.ledger.session_scope() as session:
+            for res in semantic_results:
+                enriched_item = res.copy()
+                structural_id = res['metadata'].get('structural_id')
+                if structural_id:
+                    try:
+                        entity_context = self._resolve_entity(session, structural_id)
+                    except Exception as e:
+                        entity_context = {"error": str(e)}
+                    enriched_item['structural_context'] = entity_context
+                enriched_results.append(enriched_item)
+
         return enriched_results
+
+    def _resolve_entity(self, session, structural_id: str) -> Dict[str, Any]:
+        for prefix, method_name in self._ENTITY_RESOLVERS.items():
+            if structural_id.startswith(prefix):
+                return getattr(self, method_name)(session, structural_id)
+        return {}
+
+    @staticmethod
+    def _resolve_project(session, structural_id: str) -> Dict[str, Any]:
+        project = session.query(Project).filter_by(id=structural_id).first()
+        if not project:
+            return {}
+        context = {
+            "type": "project",
+            "id": project.id,
+            "name": project.name,
+            "repository_url": project.repository_url,
+            "status": project.status,
+            "milestones": [{"id": m.id, "title": m.title} for m in project.milestones]
+        }
+        edges = session.query(RelationalEdge).filter_by(source_id=project.id).all()
+        connected_skill_ids = [e.target_id for e in edges if e.relationship_type == "uses_skill"]
+        if connected_skill_ids:
+            skills = session.query(Skill).filter(Skill.id.in_(connected_skill_ids)).all()
+            context["skills"] = [{"id": s.id, "name": s.name} for s in skills]
+        return context
+
+    @staticmethod
+    def _resolve_milestone(session, structural_id: str) -> Dict[str, Any]:
+        milestone = session.query(Milestone).filter_by(id=structural_id).first()
+        if not milestone:
+            return {}
+        context = {
+            "type": "milestone",
+            "id": milestone.id,
+            "title": milestone.title,
+            "description": milestone.description,
+            "project_id": milestone.project_id
+        }
+        if milestone.project_id:
+            project = session.query(Project).filter_by(id=milestone.project_id).first()
+            if project:
+                context["parent_project"] = {"id": project.id, "name": project.name}
+        return context
+
+    @staticmethod
+    def _resolve_skill(session, structural_id: str) -> Dict[str, Any]:
+        skill = session.query(Skill).filter_by(id=structural_id).first()
+        if not skill:
+            return {}
+        context = {
+            "type": "skill",
+            "id": skill.id,
+            "name": skill.name,
+            "description": skill.description,
+            "proficiency_level": skill.proficiency_level
+        }
+        edges = session.query(RelationalEdge).filter_by(target_id=skill.id, relationship_type="uses_skill").all()
+        if edges:
+            project_ids = [e.source_id for e in edges]
+            projects = session.query(Project).filter(Project.id.in_(project_ids)).all()
+            context["used_in_projects"] = [{"id": p.id, "name": p.name} for p in projects]
+        return context
+
+    @staticmethod
+    def _resolve_identity_marker(session, structural_id: str) -> Dict[str, Any]:
+        marker = session.query(IdentityMarker).filter_by(id=structural_id).first()
+        if not marker:
+            return {}
+        return {
+            "type": "identity_marker",
+            "id": marker.id,
+            "key": marker.key,
+            "value": marker.value,
+            "confidence_score": marker.confidence_score
+        }

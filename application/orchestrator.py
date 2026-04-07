@@ -19,39 +19,73 @@ class Orchestrator:
 
     async def decompose_task(self, goal: str) -> List[Dict[str, Any]]:
         """
-        Uses the LLM to break a high-level goal into sub-tasks for specific roles.
-        
-        In a full implementation, this uses an LLM with a strict JSON schema.
-        For this implementation, we provide a robust simulated decomposition.
+        Breaks a high-level goal into sub-tasks for specific agent roles.
+
+        When an LLM is configured, it is used to generate the decomposition.
+        Otherwise, falls back to keyword-based heuristic routing.
         """
         logger.info("Decomposing goal: '%s'", goal)
-        
-        # Simulated LLM-driven decomposition logic
+
+        if self.llm:
+            return self._llm_decompose(goal)
+
+        return self._heuristic_decompose(goal)
+
+    def _llm_decompose(self, goal: str) -> List[Dict[str, Any]]:
+        """Uses the LLM to decompose a goal into role-tagged sub-tasks."""
+        available_roles = list(self.registry.keys())
+        prompt = (
+            f"Break the following goal into sub-tasks. "
+            f"Available agent roles: {available_roles}.\n\n"
+            f"Goal: {goal}\n\n"
+            f"Respond with a JSON array where each element has keys: "
+            f"\"role\" (one of {available_roles}), \"goal\" (sub-task description), "
+            f"\"constraints\" (list of strings). Return ONLY the JSON array."
+        )
+        try:
+            import json
+            raw = self.llm.complete(prompt)
+            # Extract JSON array from response (handle markdown fences)
+            raw = raw.strip()
+            if raw.startswith("```"):
+                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            tasks = json.loads(raw)
+            if isinstance(tasks, list) and all(isinstance(t, dict) for t in tasks):
+                # Validate roles — drop unknown ones, ensure at least one task
+                valid = [t for t in tasks if t.get("role") in self.registry]
+                if valid:
+                    return valid
+        except Exception as e:
+            logger.warning("LLM decomposition failed, falling back to heuristic: %s", e)
+
+        return self._heuristic_decompose(goal)
+
+    def _heuristic_decompose(self, goal: str) -> List[Dict[str, Any]]:
+        """Keyword-based fallback for goal decomposition."""
         goal_lower = goal.lower()
-        
+
         if "audit" in goal_lower or "verify" in goal_lower:
             return [
                 {
-                    "role": "auditor", 
-                    "goal": "Validate the structural integrity of the target entity.", 
+                    "role": "auditor",
+                    "goal": "Validate the structural integrity of the target entity.",
                     "constraints": ["check existence", "validate relationship"]
                 },
                 {
-                    "role": "researcher", 
-                    "goal": "Investigate semantic context and background information.", 
+                    "role": "researcher",
+                    "goal": "Investigate semantic context and background information.",
                     "constraints": ["retrieve historical evidence"]
                 }
             ]
         elif "research" in goal_lower or "find" in goal_lower:
             return [
                 {
-                    "role": "researcher", 
-                    "goal": f"Conduct deep dive into: {goal}", 
+                    "role": "researcher",
+                    "goal": f"Conduct deep dive into: {goal}",
                     "constraints": ["provide high-confidence evidence"]
                 }
             ]
-        
-        # Default fallback
+
         return [{"role": "researcher", "goal": goal, "constraints": []}]
 
     async def run_goal(self, goal: str, context: Dict[str, Any]) -> Dict[str, Any]:

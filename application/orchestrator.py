@@ -1,16 +1,22 @@
 import asyncio
-from typing import List, Dict, Any, Optional, Type
+import logging
+from typing import Dict, Any, List, Optional, Type
+import asyncio
+import logging
+from typing import Dict, Any, List, Optional, Type
 from domain.core.agent import HermesAgent, AgentStatus, AgentTask, AgentResult
+from domain.core.ports.ingestor import IntelligenceIngestor
 
 class Orchestrator:
     """
     The central authority that decomposes goals and manages agent lifecycles.
     Acts as the Conductor of the multi-agent system.
     """
-    def __init__(self, registry: Dict[str, Type[HermesAgent]], llm_interface=None):
+    def __init__(self, registry: Dict[str, Type[HermesAgent]], llm_interface=None, ingestor: Optional[IntelligenceIngestor] = None):
         self.registry = registry  # Maps role names to Agent classes
         self.llm = llm_interface
         self.active_agents: List[HermesAgent] = []
+        self.ingestor = ingestor
 
     async def decompose_task(self, goal: str) -> List[Dict[str, Any]]:
         """
@@ -85,6 +91,17 @@ class Orchestrator:
         # Synthesize findings
         final_report = self._synthesize(goal, raw_results)
         
+        # --- NEW: Recursive Learning Step ---
+        if self.ingestor:
+            print(f"[Orchestrator] Triggering Intelligence Ingestion for goal: '{goal}'")
+            # We pass the final_report and the context to the ingestor
+            success = await self.ingestor.ingest(final_report, context)
+            if success:
+                print(f"[Orchestrator] 🧠 Learning successful: Findings ingested into Semantic Memory.")
+            else:
+                print(f"[Orchestrator] ⚠️ Learning failed: Ingestion unsuccessful.")
+        # ------------------------------------
+        
         return final_report
 
     async def _execute_agent(self, agent: HermesAgent, task: AgentTask, context: Dict[str, Any]) -> AgentResult:
@@ -121,6 +138,205 @@ class Orchestrator:
             if res.status in [AgentStatus.COMPLETED, AgentStatus.REPORTING]:
                 total_confidence += res.confidence
                 successful_agents += 1
+
+        avg_confidence = (total_confidence / successful_agents) if successful_agents > 0 else 0.0
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
+
+
+        return {
+            "goal": goal,
+            "orchestration_summary": {
+                "agents_dispatched": len(results),
+                "agents_successful": successful_agents,
+                "aggregate_confidence": round(avg_confidence, 2)
+            },
+            "agent_findings": findings
+        }
 
         avg_confidence = (total_confidence / successful_agents) if successful_agents > 0 else 0.0
 

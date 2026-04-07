@@ -43,7 +43,17 @@ class HermesAgent(ABC):
 
     async def run(self, task: AgentTask, context: Dict[str, Any]) -> AgentResult:
         """
-        The primary execution lifecycle.
+        The primary execution lifecycle for an agent.
+
+        State transitions:
+            IDLE -> THINKING -> ACTING -> REFLECTING -> REPORTING -> COMPLETED
+                    \____________any stage____________/ -> FAILED (on exception)
+
+        Stages:
+            THINKING:    _plan() decomposes the goal into sub-tasks.
+            ACTING:      _execute_plan() runs each sub-task via the LLM.
+            REFLECTING:  _reflect() evaluates findings against the goal/constraints.
+            REPORTING:   Final result is logged; status moves to COMPLETED.
         """
         self.current_task = task
         self._log(f"Starting task: {task.goal}")

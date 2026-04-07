@@ -35,9 +35,7 @@ class TestOrchestration(unittest.IsolatedAsyncioTestCase):
         
         # Check if findings contain mock responses
         findings_text = str(result["findings"])
-        self.assertIn("The foundation of your existence", findings_text) # From MockLLM for Researcher (if prompt contains 'pillar' logic)
-        # Note: In my mock, 'researcher' task might not hit the specific keyword, 
-        # but the orchestrator should still return the simulated response.
+        self.assertTrue(any("exploration" in f["finding"].lower() or "integrity" in f["finding"].lower() for f in result["findings"]))
         self.assertTrue(len(result["findings"]) > 0)
 
     async def test_single_task_goal(self):

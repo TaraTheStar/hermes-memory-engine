@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Set
-from core.llm_interface import BaseLLMInterface
-from core.llm_implementations import LocalLLMImplementation
-from core.config_loader import ConfigLoader
+from infrastructure.llm_interface import BaseLLMInterface
+from infrastructure.llm_implementations import LocalLLMImplementation
+from domain.supporting.config_loader import ConfigLoader
 
 class InsightSynthesizer:
     """

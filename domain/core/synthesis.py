@@ -2,9 +2,9 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
-from core.semantic_memory import SemanticMemory
-from core.ledger import StructuralLedger
-from core.models import Project, Milestone, Skill, IdentityMarker, RelationalEdge
+from domain.core.semantic_memory import SemanticMemory
+from domain.supporting.ledger import StructuralLedger
+from domain.core.models import Project, Milestone, Skill, IdentityMarker, RelationalEdge
 
 class SynthesisEngine:
     def __init__(self, semantic_dir: str, structural_db_path: str):

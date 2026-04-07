@@ -1,7 +1,7 @@
 import os
 from typing import List, Dict, Any, Optional
-from core.semantic_memory import SemanticMemory
-from core.models import Event
+from domain.core.semantic_memory import SemanticMemory
+from domain.core.models import Event
 
 # Note: In a real deployment, EventExtractor would call an LLM API.
 # Here, I am designing the interface so that I (the agent) can 
@@ -77,7 +77,7 @@ class MemoryEngine:
             structural_db_path = os.environ.get("HERMES_STRUCTURAL_DB", "/data/hermes_memory_engine/structural/structure.db")
         self.semantic_memory = SemanticMemory(semantic_dir)
         self.extractor = EventExtractor()
-        from core.ledger import StructuralLedger
+        from domain.supporting.ledger import StructuralLedger
         self.ledger = StructuralLedger(structural_db_path)
 
     def ingest_interaction(self, user_text: str, assistant_text: str, instructions: Optional[List[Dict[str, Any]]] = None):
@@ -122,7 +122,7 @@ class MemoryEngine:
             structural_id = res['metadata'].get('structural_id')
             if structural_id:
                 entity_context = {}
-                from core.models import Project, Milestone, Skill, IdentityMarker
+                from domain.core.models import Project, Milestone, Skill, IdentityMarker
                 session = self.ledger.Session()
                 try:
                     if structural_id.startswith("proj_"):
@@ -137,7 +137,7 @@ class MemoryEngine:
                                 "milestones": [{"id": m.id, "title": m.title} for m in project.milestones]
                             }
                             # Neighbor Expansion: Add connected skills
-                            from core.models import RelationalEdge, Skill
+                            from domain.core.models import RelationalEdge, Skill
                             edges = session.query(RelationalEdge).filter_by(source_id=project.id).all()
                             connected_skill_ids = [e.target_id for e in edges if e.relationship_type == "uses_skill"]
                             if connected_skill_ids:
@@ -169,7 +169,7 @@ class MemoryEngine:
                                 "proficiency_level": skill.proficiency_level
                             }
                             # Neighbor Expansion: Add projects that use this skill
-                            from core.models import RelationalEdge, Project
+                            from domain.core.models import RelationalEdge, Project
                             edges = session.query(RelationalEdge).filter_by(target_id=skill.id, relationship_type="uses_skill").all()
                             if edges:
                                 project_ids = [e.source_id for e in edges]

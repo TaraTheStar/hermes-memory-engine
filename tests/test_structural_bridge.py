@@ -5,9 +5,9 @@ import sys
 # Add the repo root to the path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.engine import MemoryEngine
-from core.ledger import StructuralLedger
-from core.models import Project, Milestone, Skill, IdentityMarker, Event
+from application.engine import MemoryEngine
+from domain.supporting.ledger import StructuralLedger
+from domain.core.models import Project, Milestone, Skill, IdentityMarker, Event
 
 class TestStructuralBridge(unittest.TestCase):
     @classmethod

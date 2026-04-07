@@ -1,6 +1,6 @@
 import asyncio
 from typing import List, Dict, Any
-from core.agent import HermesAgent, AgentStatus
+from domain.core.agent import HermesAgent, AgentStatus
 
 class Orchestrator:
     """

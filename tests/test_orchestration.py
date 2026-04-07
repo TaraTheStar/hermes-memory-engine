@@ -7,9 +7,9 @@ import asyncio
 repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, repo_path)
 
-from core.orchestrator import Orchestrator
-from core.llm_implementations import MockLLMInterface
-from core.agents_impl import ResearcherAgent, AuditorAgent
+from application.orchestrator import Orchestrator
+from infrastructure.llm_implementations import MockLLMInterface
+from domain.core.agents_impl import ResearcherAgent, AuditorAgent
 
 class TestOrchestration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

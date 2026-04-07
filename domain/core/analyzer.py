@@ -1,7 +1,7 @@
 import networkx as nx
 from typing import Dict, List, Any, Set
-from core.ledger import StructuralLedger
-from core.models import RelationalEdge, Skill, Milestone, Project
+from domain.supporting.ledger import StructuralLedger
+from domain.core.models import RelationalEdge, Skill, Milestone, Project
 
 class GraphAnalyzer:
     def __init__(self, structural_db_path: str):

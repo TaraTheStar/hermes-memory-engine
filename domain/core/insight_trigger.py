@@ -3,9 +3,9 @@ import datetime
 from typing import List, Dict, Any, Optional, Set
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from core.models import Base
-from core.monitor_models import AnomalyEvent
-from core.orchestrator import Orchestrator
+from domain.core.models import Base
+from domain.supporting.monitor_models import AnomalyEvent
+from application.orchestrator import Orchestrator
 
 class InsightTrigger:
     """

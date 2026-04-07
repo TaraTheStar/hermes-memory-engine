@@ -10,13 +10,13 @@ repo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if repo_path not in sys.path:
     sys.path.insert(0, repo_path)
 
-from core.ledger import StructuralLedger
-from core.analyzer import GraphAnalyzer
-from core.monitor import StateTracker, AnomalyDetector
-from core.orchestrator import Orchestrator
-from core.agents_impl import ResearcherAgent, AuditorAgent
-from core.llm_implementations import OpenAIImplementation
-from core.models import Skill, RelationalEdge
+from domain.supporting.ledger import StructuralLedger
+from domain.core.analyzer import GraphAnalyzer
+from domain.supporting.monitor import StateTracker, AnomalyDetector
+from application.orchestrator import Orchestrator
+from domain.core.agents_impl import ResearcherAgent, AuditorAgent
+from infrastructure.llm_implementations import OpenAIImplementation
+from domain.core.models import Skill, RelationalEdge
 
 # Database path for the test
 DB_PATH = '/tmp/hermes_stress_test.db'
@@ -35,7 +35,7 @@ async def run_stress_test():
     registry = {"researcher": ResearcherAgent, "auditor": AuditorAgent}
     orchestrator = Orchestrator(registry, llm)
     
-    from core.insight_trigger import InsightTrigger
+    from domain.core.insight_trigger import InsightTrigger
     trigger = InsightTrigger(DB_PATH, orchestrator)
 
     # 2. Baseline

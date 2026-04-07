@@ -2,9 +2,9 @@ import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any
-from core.semantic_memory import SemanticMemory
-from core.ledger import StructuralLedger
-from core.models import Event
+from domain.core.semantic_memory import SemanticMemory
+from domain.supporting.ledger import StructuralLedger
+from domain.core.models import Event
 
 class EpisodicMigrator:
     def __init__(self, 
@@ -14,7 +14,7 @@ class EpisodicMigrator:
         # We'll import the engine components dynamically to avoid path issues
         import sys
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from core.engine import MemoryEngine
+        from application.engine import MemoryEngine
         self.engine = MemoryEngine()
 
     def run_migration(self):

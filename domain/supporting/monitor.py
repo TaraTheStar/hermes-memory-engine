@@ -4,9 +4,9 @@ import statistics
 from typing import Dict, List, Any, Optional, Set
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from core.models import Base
-from core.analyzer import GraphAnalyzer
-from core.monitor_models import GraphSnapshot, AnomalyEvent
+from domain.core.models import Base
+from domain.core.analyzer import GraphAnalyzer
+from domain.supporting.monitor_models import GraphSnapshot, AnomalyEvent
 
 class StateTracker:
     """
@@ -14,7 +14,7 @@ class StateTracker:
     """
     def __init__(self, structural_db_path: str):
         self.engine = create_engine(f"sqlite:///{structural_db_path}")
-        from core.monitor_models import MonitoringBase
+        from domain.supporting.monitor_models import MonitoringBase
         MonitoringBase.metadata.create_all(self.engine)
         
         self.Session = sessionmaker(bind=self.engine)
@@ -61,7 +61,7 @@ class AnomalyDetector:
     """
     def __init__(self, structural_db_path: str, sensitivity: float = 2.0):
         self.engine = create_engine(f"sqlite:///{structural_db_path}")
-        from core.monitor_models import MonitoringBase
+        from domain.supporting.monitor_models import MonitoringBase
         MonitoringBase.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.sensitivity = sensitivity

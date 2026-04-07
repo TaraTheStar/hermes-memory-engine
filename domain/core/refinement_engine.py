@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Set, Optional
 import networkx as nx
-from core.ledger import StructuralLedger
-from core.analyzer import GraphAnalyzer
+from domain.supporting.ledger import StructuralLedger
+from domain.core.analyzer import GraphAnalyzer
 
 class RefinementProposal:
     def __init__(self, proposal_type: str, target_id: str, description: str, data: Dict[str, Any]):

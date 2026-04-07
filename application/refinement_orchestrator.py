@@ -6,12 +6,12 @@ from typing import List, Dict, Any, Set, Optional
 # Add parent directory to sys.path to allow absolute imports from the repo root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from core.ledger import StructuralLedger
-from core.orchestrator import Orchestrator
-from core.refinement_engine import RefinementEngine, RefinementProposal
-from core.agents_impl import ResearcherAgent, AuditorAgent
-from core.llm_implementations import LocalLLMImplementation
-from core.models import Skill, RelationalEdge
+from domain.supporting.ledger import StructuralLedger
+from application.orchestrator import Orchestrator
+from domain.core.refinement_engine import RefinementEngine, RefinementProposal
+from domain.core.agents_impl import ResearcherAgent, AuditorAgent
+from infrastructure.llm_implementations import LocalLLMImplementation
+from domain.core.models import Skill, RelationalEdge
 
 class RefinementOrchestrator:
     """

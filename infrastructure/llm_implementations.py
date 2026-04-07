@@ -1,7 +1,7 @@
 import os
 from typing import Dict, List, Any, Set
-from core.llm_interface import BaseLLMInterface
-from core.config_loader import ConfigLoader
+from infrastructure.llm_interface import BaseLLMInterface
+from domain.supporting.config_loader import ConfigLoader
 from openai import OpenAI
 
 class LocalLLMImplementation(BaseLLMInterface):

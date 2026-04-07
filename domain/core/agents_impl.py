@@ -1,7 +1,7 @@
 import os
 from typing import Dict, Any
-from core.agent import HermesAgent, AgentStatus
-from core.llm_interface import BaseLLMInterface
+from domain.core.agent import HermesAgent, AgentStatus
+from infrastructure.llm_interface import BaseLLMInterface
 
 class ResearcherAgent(HermesAgent):
     """

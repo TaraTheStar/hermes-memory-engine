@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from core.models import Base, Event, Project, Milestone, Skill, IdentityMarker, RelationalEdge
+from domain.core.models import Base, Event, Project, Milestone, Skill, IdentityMarker, RelationalEdge
 
 class StructuralLedger:
     def __init__(self, db_path: str = None):

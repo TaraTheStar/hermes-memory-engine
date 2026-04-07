@@ -1,7 +1,7 @@
 import datetime
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
-from core.llm_interface import BaseLLMInterface
+from infrastructure.llm_interface import BaseLLMInterface
 
 class AgentStatus:
     IDLE = "idle"

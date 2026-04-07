@@ -6,8 +6,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from core.llm_implementations import OpenAIImplementation
-from core.config_loader import ConfigLoader
+from infrastructure.llm_implementations import OpenAIImplementation
+from domain.supporting.config_loader import ConfigLoader
 
 def test_openai_connection():
     print("--- Testing OpenAIImplementation Connection ---")

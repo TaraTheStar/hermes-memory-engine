@@ -79,7 +79,7 @@ class ContextualAnomalyDetector:
         """
         import numpy as np
         profile = self._get_profile(context_id)
-        if not historical_values or len(historical_values) < profile.min_sample_size:
+        if not historical_values or len(historical_values) < max(profile.min_sample_size, 2):
             return self._evaluate_simple_threshold(metric_type, current_value, context_id)
 
         # --- Statistical Analysis (Z-Score) ---

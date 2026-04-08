@@ -39,13 +39,14 @@ class SynthesisEngine:
             skills = session.query(Skill).all()
             events = self.semantic_memory.list_events(limit=100)
 
-            # Pre-load existing temporal_context edges into a set for O(1) lookup
-            existing_edges = {
-                (e.source_id, e.target_id)
-                for e in session.query(
-                    RelationalEdge.source_id, RelationalEdge.target_id
-                ).filter_by(relationship_type="temporal_context").all()
-            }
+            # Pre-load existing temporal_context edges into a set for O(1) lookup.
+            # Store both directions so (A,B) and (B,A) are treated as the same edge.
+            existing_edges: set = set()
+            for e in session.query(
+                RelationalEdge.source_id, RelationalEdge.target_id
+            ).filter_by(relationship_type="temporal_context").all():
+                existing_edges.add((e.source_id, e.target_id))
+                existing_edges.add((e.target_id, e.source_id))
 
             for event in events:
                 try:
@@ -83,7 +84,9 @@ class SynthesisEngine:
 
                 # Check against skills
                 for sk in skills:
-                    sk_time = sk.last_used if sk.last_used else datetime.now(timezone.utc)
+                    if sk.last_used is None:
+                        continue  # Skip skills that have never been used
+                    sk_time = sk.last_used
                     sk_time = sk_time if sk_time.tzinfo else sk_time.replace(tzinfo=timezone.utc)
                     if abs((event_time - sk_time).total_seconds()) <= window_delta.total_seconds():
                         if sk.name.lower() in event_text:
@@ -116,13 +119,14 @@ class SynthesisEngine:
             return 0
 
         with self.ledger.session_scope() as session:
-            # Pre-load existing semantic_similarity edges for O(1) lookup
-            existing_edges = {
-                (e.source_id, e.target_id)
-                for e in session.query(
-                    RelationalEdge.source_id, RelationalEdge.target_id
-                ).filter_by(relationship_type="semantic_similarity").all()
-            }
+            # Pre-load existing semantic_similarity edges for O(1) lookup.
+            # Store both directions so (A,B) and (B,A) are treated as the same edge.
+            existing_edges: set = set()
+            for e in session.query(
+                RelationalEdge.source_id, RelationalEdge.target_id
+            ).filter_by(relationship_type="semantic_similarity").all():
+                existing_edges.add((e.source_id, e.target_id))
+                existing_edges.add((e.target_id, e.source_id))
 
             for i in range(len(events)):
                 for j in range(i + 1, len(events)):
@@ -173,13 +177,14 @@ class SynthesisEngine:
         with self.ledger.session_scope() as session:
             skills = session.query(Skill).all()
 
-            # Pre-load existing attribute_symmetry edges for O(1) lookup
-            existing_edges = {
-                (e.source_id, e.target_id)
-                for e in session.query(
-                    RelationalEdge.source_id, RelationalEdge.target_id
-                ).filter_by(relationship_type="attribute_symmetry").all()
-            }
+            # Pre-load existing attribute_symmetry edges for O(1) lookup.
+            # Store both directions so (A,B) and (B,A) are treated as the same edge.
+            existing_edges: set = set()
+            for e in session.query(
+                RelationalEdge.source_id, RelationalEdge.target_id
+            ).filter_by(relationship_type="attribute_symmetry").all():
+                existing_edges.add((e.source_id, e.target_id))
+                existing_edges.add((e.target_id, e.source_id))
 
             for i in range(len(skills)):
                 for j in range(i + 1, len(skills)):

@@ -2,13 +2,25 @@ import os
 import tempfile
 import pytest
 
-from domain.supporting.config_loader import ConfigLoader
+from domain.supporting.config_loader import ConfigLoader, _ALLOWED_ROOTS
 
 
-def test_missing_config_file_raises():
+@pytest.fixture
+def _config_dir():
+    """Create a temp dir inside an allowed root for config tests."""
+    # _ALLOWED_ROOTS includes the domain/ directory; use a subdir of it.
+    allowed_root = os.path.realpath(_ALLOWED_ROOTS[-1])
+    config_dir = os.path.join(allowed_root, ".test_config_tmp")
+    os.makedirs(config_dir, exist_ok=True)
+    yield config_dir
+    import shutil
+    shutil.rmtree(config_dir, ignore_errors=True)
+
+
+def test_missing_config_file_raises(_config_dir):
     """Missing config file should raise FileNotFoundError with helpful message."""
     with pytest.raises(FileNotFoundError, match="HERMES_CONFIG_PATH"):
-        ConfigLoader("/tmp/hermes_nonexistent_config.yaml")
+        ConfigLoader(os.path.join(_config_dir, "nonexistent.yaml"))
 
 
 def test_path_outside_allowlist_raises():
@@ -17,42 +29,51 @@ def test_path_outside_allowlist_raises():
         ConfigLoader("/nonexistent/path/config.yaml")
 
 
-def test_valid_config_loads():
+def test_tmp_is_not_in_allowed_roots():
+    """/tmp should not be an allowed config root."""
+    assert not any(
+        os.path.realpath("/tmp").startswith(os.path.realpath(root) + os.sep)
+        or os.path.realpath("/tmp") == os.path.realpath(root)
+        for root in _ALLOWED_ROOTS
+    )
+
+
+def test_valid_config_loads(_config_dir):
     """Valid YAML config should load successfully."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    path = os.path.join(_config_dir, "test_config.yaml")
+    with open(path, "w") as f:
         f.write("delegation:\n  base_url: http://localhost:8080\n  api_key: test-key\n  model: test-model\n")
-        f.flush()
-        try:
-            loader = ConfigLoader(f.name)
-            config = loader.get_delegation_config()
-            assert config["base_url"] == "http://localhost:8080"
-            assert config["api_key"] == "test-key"
-            assert config["model"] == "test-model"
-        finally:
-            os.unlink(f.name)
+    try:
+        loader = ConfigLoader(path)
+        config = loader.get_delegation_config()
+        assert config["base_url"] == "http://localhost:8080"
+        assert config["api_key"] == "test-key"
+        assert config["model"] == "test-model"
+    finally:
+        os.unlink(path)
 
 
-def test_missing_delegation_block_raises():
+def test_missing_delegation_block_raises(_config_dir):
     """Config without delegation block should raise KeyError."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    path = os.path.join(_config_dir, "no_delegation.yaml")
+    with open(path, "w") as f:
         f.write("other_key: value\n")
-        f.flush()
-        try:
-            loader = ConfigLoader(f.name)
-            with pytest.raises(KeyError):
-                loader.get_delegation_config()
-        finally:
-            os.unlink(f.name)
+    try:
+        loader = ConfigLoader(path)
+        with pytest.raises(KeyError):
+            loader.get_delegation_config()
+    finally:
+        os.unlink(path)
 
 
-def test_invalid_yaml_raises():
+def test_invalid_yaml_raises(_config_dir):
     """Malformed YAML should raise RuntimeError."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    path = os.path.join(_config_dir, "bad.yaml")
+    with open(path, "w") as f:
         # Use content that yaml.safe_load reliably rejects
         f.write("key: [\ninvalid:\n  - {\n")
-        f.flush()
-        try:
-            with pytest.raises(RuntimeError, match="Failed to parse"):
-                ConfigLoader(f.name)
-        finally:
-            os.unlink(f.name)
+    try:
+        with pytest.raises(RuntimeError, match="Failed to parse"):
+            ConfigLoader(path)
+    finally:
+        os.unlink(path)

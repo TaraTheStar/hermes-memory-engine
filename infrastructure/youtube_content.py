@@ -40,6 +40,10 @@ class YouTubeContentSkill:
         try:
             output_template = os.path.join(tmp_dir, f"yt_sub_{video_id}")
 
+            # Use the validated video_id to construct a canonical URL,
+            # rather than passing the raw user-supplied URL to yt-dlp.
+            canonical_url = f"https://www.youtube.com/watch?v={video_id}"
+
             cmd = [
                 "yt-dlp",
                 "--skip-download",
@@ -47,7 +51,7 @@ class YouTubeContentSkill:
                 "--sub-lang", lang,
                 "--convert-subs", "srt",
                 "-o", output_template,
-                "--", video_url
+                "--", canonical_url
             ]
 
             subprocess.run(cmd, capture_output=True, text=True, check=True)

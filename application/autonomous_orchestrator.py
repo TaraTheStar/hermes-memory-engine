@@ -76,7 +76,6 @@ class AutonomousOrchestrator(Orchestrator, GoalRunner):
                                 while len(self._processed_event_ids) > self._max_processed_ids:
                                     self._processed_event_ids.popitem(last=False)
                                 await self.run_goal(goal, context)
-                                break
 
                 # 3. Check for structural changes
                 if self.structural_ledger:

@@ -92,9 +92,10 @@ class RefinementOrchestrator:
                 return True
         return False
 
-    async def _execute_proposal(self, proposal: GraphRefinementProposal):
+    async def _execute_proposal(self, proposal: GraphRefinementProposal) -> bool:
         """
         Applies the change to the Structural Ledger.
+        Returns True on success, False if the proposal could not be executed.
         """
         logger.info("Executing %s...", proposal.proposal_type)
         with self.ledger.session_scope() as session:
@@ -102,18 +103,25 @@ class RefinementOrchestrator:
                 parts = proposal.target_id.split("->", 1)
                 if len(parts) != 2:
                     logger.warning("Malformed edge target_id: %s", proposal.target_id)
-                    return
+                    return False
                 u, v = parts
                 session.query(RelationalEdge).filter(
                     (RelationalEdge.source_id == u) & (RelationalEdge.target_id == v)
                 ).delete()
                 logger.info("Edge %s <-> %s pruned.", u, v)
+                return True
 
             elif proposal.proposal_type == "MERGE_COMMUNITY":
                 logger.info("[SIMULATED] Community condensation triggered for %s.", proposal.target_id)
+                return True
 
             elif proposal.proposal_type == "GLOBAL_REBALANCE":
                 logger.info("[SIMULATED] Global rebalancing triggered.")
+                return True
+
+            else:
+                logger.warning("Unknown proposal type: %s", proposal.proposal_type)
+                return False
 
 if __name__ == "__main__":
     import asyncio

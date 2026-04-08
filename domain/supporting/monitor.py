@@ -109,11 +109,8 @@ class SnapshotAnomalyDetector:
         return {"expected": max(0.0, prediction), "uncertainty": uncertainty, "velocity": m}
 
     def detect_anomalies(self, current_snapshot: any) -> list:
-        import logging
-        import uuid
         import numpy as np
-        
-        logger = logging.getLogger(__name__)
+
         logger.info("Sentinel scanning for structural anomalies...")
         anomalies = []
 

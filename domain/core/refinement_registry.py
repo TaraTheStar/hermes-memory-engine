@@ -11,11 +11,27 @@ class RefinementRegistry:
     def __init__(self):
         self._refinements: Dict[str, Any] = {}
 
+    _MAX_VALUE_LENGTH = 5000
+
     def apply(self, proposal: Any) -> None:
-        """Applies an approved refinement proposal to the registry."""
+        """Applies an approved refinement proposal to the registry.
+
+        Silently rejects proposals with invalid targets (non-string, empty,
+        whitespace-only) or invalid values (non-string, oversized).
+        """
         target = proposal.target_component
         value = proposal.proposed_state
-        
+
+        if not isinstance(target, str) or not target.strip():
+            logger.warning("Rejecting refinement: invalid target %r", target)
+            return
+        if not isinstance(value, str):
+            logger.warning("Rejecting refinement: proposed_state is not a string")
+            return
+        if len(value) > self._MAX_VALUE_LENGTH:
+            logger.warning("Rejecting refinement: proposed_state exceeds %d chars", self._MAX_VALUE_LENGTH)
+            return
+
         logger.info("Applying refinement to '%s': %s", target, value)
         self._refinements[target] = value
 

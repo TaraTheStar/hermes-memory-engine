@@ -12,7 +12,7 @@ if repo_path not in sys.path:
 
 from domain.supporting.ledger import StructuralLedger
 from domain.core.analyzer import GraphAnalyzer
-from domain.supporting.monitor import StateTracker, AnomalyDetector
+from domain.supporting.monitor import StateTracker, SnapshotAnomalyDetector
 from application.orchestrator import Orchestrator
 from domain.core.agents_impl import ResearcherAgent, AuditorAgent
 from infrastructure.llm_implementations import OpenAIImplementation
@@ -29,7 +29,7 @@ async def run_stress_test():
     ledger = StructuralLedger(DB_PATH)
     analyzer = GraphAnalyzer(ledger)
     tracker = StateTracker(ledger)
-    detector = AnomalyDetector(ledger)
+    detector = SnapshotAnomalyDetector(ledger)
 
     llm = OpenAIImplementation()
     registry = {"researcher": ResearcherAgent, "auditor": AuditorAgent}

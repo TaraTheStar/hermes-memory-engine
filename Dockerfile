@@ -23,6 +23,5 @@ RUN mkdir -p /data/hermes_memory_engine/structural \
 ENV PYTHONUNBUFFERED=1
 ENV HERMES_CONFIG_PATH=/app/config.yaml
 
-EXPOSE 8000
-
+# Default: run test suite. Override CMD for other entrypoints.
 CMD ["python3", "-m", "pytest", "tests/", "-v"]

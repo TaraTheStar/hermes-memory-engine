@@ -53,7 +53,7 @@ class StateTracker:
         return snapshot
 
 
-class AnomalyDetector:
+class SnapshotAnomalyDetector:
     """
     Compares the current snapshot against historical data to find significant patterns.
     """

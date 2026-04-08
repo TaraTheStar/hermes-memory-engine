@@ -10,7 +10,7 @@ if repo_path not in sys.path:
 
 from domain.supporting.ledger import StructuralLedger
 from domain.core.analyzer import GraphAnalyzer
-from domain.supporting.monitor import StateTracker, AnomalyDetector
+from domain.supporting.monitor import StateTracker, SnapshotAnomalyDetector
 from application.orchestrator import Orchestrator
 from domain.core.synthesizer import InsightSynthesizer
 from domain.core.agents_impl import ResearcherAgent, AuditorAgent
@@ -31,7 +31,7 @@ async def execute_first_contact():
     ledger = StructuralLedger(DB_PATH)
     analyzer = GraphAnalyzer(ledger)
     tracker = StateTracker(ledger)
-    detector = AnomalyDetector(ledger)
+    detector = SnapshotAnomalyDetector(ledger)
 
     llm = LocalLLMImplementation()
     registry = {"researcher": ResearcherAgent, "auditor": AuditorAgent}
@@ -121,7 +121,7 @@ async def execute_first_contact():
         print(f" -> Investigating: {anomaly.description}")
         # We use the orchestrator to run a goal based on the anomaly
         goal = f"Investigate this pattern: {anomaly.description}"
-        result = await orchestrator.run_goal(goal)
+        result = await orchestrator.run_goal(goal, context={})
         all_findings.append(result)
 
     # Constructing the final report components
@@ -132,9 +132,9 @@ async def execute_first_contact():
     findings_summary = "\n\n## Agentic Findings\n"
     for i, res in enumerate(all_findings):
         findings_summary += f"### Investigation {i+1}\n"
-        findings_summary += f"Goal: {res['original_goal']}\n"
-        for finding in res['findings']:
-            findings_summary += f"- {finding}\n"
+        findings_summary += f"Goal: {res['goal']}\n"
+        for finding in res['agent_findings']:
+            findings_summary += f"- {finding['finding']}\n"
 
     # Final Synthesis
     print("\n✨ Generating 'State of the Soul' Report...\n")

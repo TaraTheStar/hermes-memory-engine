@@ -124,7 +124,9 @@ class SemanticMemory:
         res1 = self.collection.get(ids=[id1], include=['embeddings'])
         res2 = self.collection.get(ids=[id2], include=['embeddings'])
 
-        if not res1['embeddings'] or not res2['embeddings']:
+        if res1['embeddings'] is None or res2['embeddings'] is None:
+            return 0.0
+        if len(res1['embeddings']) == 0 or len(res2['embeddings']) == 0:
             return 0.0
 
         emb1 = np.array(res1['embeddings'][0])

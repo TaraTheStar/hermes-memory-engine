@@ -93,10 +93,10 @@ bridges = analyzer.get_bridge_nodes(top_n=3)
 ### Monitoring & Anomaly Detection
 
 ```python
-from domain.supporting.monitor import StateTracker, AnomalyDetector
+from domain.supporting.monitor import StateTracker, SnapshotAnomalyDetector
 
 tracker = StateTracker("/tmp/hermes_structure.db")
-detector = AnomalyDetector("/tmp/hermes_structure.db")
+detector = SnapshotAnomalyDetector("/tmp/hermes_structure.db")
 
 snapshot = tracker.capture_snapshot()
 anomalies = detector.detect_anomalies(snapshot)

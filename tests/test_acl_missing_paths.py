@@ -43,11 +43,10 @@ class TestStorageTranslatorMissingPaths:
     def test_integrity_error(self):
         """IntegrityError-like exception should map to STORAGE_INTEGRITY_VIOLATION."""
         translator = StorageTranslator()
-        # StorageTranslator matches on string content of exception class name
-        exc = Exception("integrity error: UNIQUE constraint failed")
+        exc = Exception("(sqlite3.IntegrityError) UNIQUE constraint failed")
         event = translator.translate_exception(exc)
-        # The translator checks class name, not message; verify it at least doesn't crash
-        assert event is not None
+        assert event.error_code == "STORAGE_INTEGRITY_VIOLATION"
+        assert event.severity == EventSeverity.WARNING
 
     def test_transform_data_bytes(self):
         translator = StorageTranslator()

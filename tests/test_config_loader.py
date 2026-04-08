@@ -77,3 +77,27 @@ def test_invalid_yaml_raises(_config_dir):
             ConfigLoader(path)
     finally:
         os.unlink(path)
+
+
+def test_empty_yaml_raises(_config_dir):
+    """Empty YAML file (returns None) should raise RuntimeError."""
+    path = os.path.join(_config_dir, "empty.yaml")
+    with open(path, "w") as f:
+        f.write("")
+    try:
+        with pytest.raises(RuntimeError, match="YAML mapping"):
+            ConfigLoader(path)
+    finally:
+        os.unlink(path)
+
+
+def test_non_dict_yaml_raises(_config_dir):
+    """YAML file with a list root should raise RuntimeError."""
+    path = os.path.join(_config_dir, "list.yaml")
+    with open(path, "w") as f:
+        f.write("- item1\n- item2\n")
+    try:
+        with pytest.raises(RuntimeError, match="YAML mapping"):
+            ConfigLoader(path)
+    finally:
+        os.unlink(path)

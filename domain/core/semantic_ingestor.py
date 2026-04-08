@@ -36,14 +36,19 @@ class SemanticIngestor(IntelligenceIngestor):
 
             # 1. Construct a prompt for the LLM to synthesize the intelligence
             # We want a single, high-density sentence that captures the essence.
-            findings_str = "\n".join([f"- {f['finding']} (Confidence: {f['confidence']})" for f in findings])
-            
+            # Each finding is individually sanitized to prevent cross-finding injection.
+            sanitized_findings = []
+            for f in findings:
+                safe_text = sanitize_field(str(f['finding']), 'finding')
+                sanitized_findings.append(f"- {safe_text} (Confidence: {f['confidence']})")
+            findings_str = "\n".join(sanitized_findings)
+
             prompt = (
                 f"You are the Intelligence Synthesis engine for the Hermes Memory System. "
                 f"Your task is to take a complex orchestration report and compress it into a single, "
                 f"high-signal, professional sentence that can be stored in long-term memory.\n\n"
                 f"GOAL: {sanitize_field(goal, 'goal')}\n"
-                f"FINDINGS:\n{sanitize_field(findings_str, 'findings')}\n\n"
+                f"FINDINGS:\n{findings_str}\n\n"
                 f"INSTRUCTION: Output ONLY the single sentence. No preamble. No commentary. "
                 f"Focus on the 'what' and the 'why'. The sentence must be dense and descriptive.\n\n"
                 f"SYNTHESIZED EVENT:"

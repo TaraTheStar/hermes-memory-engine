@@ -45,9 +45,15 @@ class ConfigLoader:
 
         try:
             with open(self.config_path, 'r') as f:
-                self._config = yaml.safe_load(f)
+                raw = yaml.safe_load(f)
         except Exception as e:
             raise RuntimeError(f"Failed to parse configuration: {e}")
+
+        if not isinstance(raw, dict):
+            raise RuntimeError(
+                f"Configuration file must contain a YAML mapping, got {type(raw).__name__}"
+            )
+        self._config = raw
 
     def get_delegation_config(self) -> Dict[str, Any]:
         """

@@ -25,14 +25,16 @@ class StorageTranslator(BaseTranslator):
         elif isinstance(exception, IsADirectoryError):
             severity = EventSeverity.ERROR
             error_code = "STORAGE_EXPECTED_FILE_NOT_DIR"
-        
-        # Database/SQLAlchemy Errors (String-based check to avoid heavy imports)
+
+        # Database/SQLAlchemy Errors (String-based check to avoid heavy imports).
+        # Check integrity violations first — their messages also contain "sqlite"
+        # or "sqlalchemy", so the more specific check must come before the generic one.
+        elif "integrity" in error_msg.lower():
+            severity = EventSeverity.WARNING
+            error_code = "STORAGE_INTEGRITY_VIOLATION"
         elif "sqlalchemy" in error_msg.lower() or "sqlite" in error_msg.lower():
             severity = EventSeverity.ERROR
             error_code = "STORAGE_DATABASE_FAILURE"
-        elif "integrity error" in error_msg.lower():
-            severity = EventSeverity.WARNING
-            error_code = "STORAGE_INTEGRITY_VIOLATION"
 
         # Generic fallback
         elif "oserror" in error_msg.lower():

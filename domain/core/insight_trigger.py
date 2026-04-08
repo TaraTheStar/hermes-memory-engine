@@ -52,10 +52,15 @@ class InsightTrigger:
                         await self.goal_runner.run_goal(goal, context)
                     except Exception:
                         logger.exception("Goal runner failed for anomaly %s", anomaly_id)
+                        # Mark as processed even on failure to prevent infinite retries.
+                        # A separate retry/dead-letter mechanism should handle persistent failures.
+                        anomaly.processed = True
                         continue
                     anomaly.processed = True
                 else:
-                    logger.warning("Could not generate goal for anomaly: %s", anomaly.anomaly_type)
+                    logger.warning("Could not generate goal for anomaly: %s — marking as processed to prevent retry loop.",
+                                   anomaly.anomaly_type)
+                    anomaly.processed = True
 
     def _generate_goal_from_anomaly(self, anomaly: AnomalyEvent) -> str:
         """

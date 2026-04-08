@@ -21,16 +21,18 @@ class SemanticMemory:
         """
         Embeds and stores a new event in the semantic layer, with an optional link to a structural entity
         and a bounded context identifier.
+
+        A shallow copy of *metadata* is made so the caller's dict is never mutated.
         """
         event_id = f"evt_{uuid.uuid4().hex}"
-        metadata["timestamp"] = datetime.now(timezone.utc).isoformat()
-        
+        metadata = {**metadata, "timestamp": datetime.now(timezone.utc).isoformat()}
+
         if structural_id:
             metadata["structural_id"] = structural_id
-        
+
         if context_id:
             metadata["context_id"] = context_id
-            
+
         self.collection.add(
             ids=[event_id],
             documents=[text],

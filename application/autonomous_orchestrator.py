@@ -72,7 +72,8 @@ class AutonomousOrchestrator(Orchestrator, GoalRunner):
                             if event_id in self._processed_event_ids:
                                 continue
                             if "milestone" in event['metadata'].get('type', '') or "integration" in event['text'].lower():
-                                goal = f"Investigate the recent semantic milestone: {event['text']}"
+                                from domain.core.prompt_sanitizer import sanitize_field
+                                goal = f"Investigate the recent semantic milestone: {sanitize_field(event['text'], 'event_text')}"
                                 logger.info(f"Trigger detected! New Goal: {goal}")
                                 self._processed_event_ids[event_id] = None
                                 # Evict oldest IDs to prevent unbounded growth

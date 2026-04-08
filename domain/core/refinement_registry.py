@@ -37,17 +37,20 @@ class RefinementRegistry:
             self._refinements = {r.target: r.value for r in rows}
 
     def _persist(self, target: str, value: str) -> None:
-        """Upsert a single refinement row."""
-        from domain.core.models import Refinement
+        """Upsert a single refinement row using INSERT OR REPLACE to avoid TOCTOU races."""
         from datetime import datetime, timezone
+        from sqlalchemy import text
 
+        now = datetime.now(timezone.utc)
         with self._ledger.session_scope() as session:
-            existing = session.query(Refinement).filter_by(target=target).first()
-            if existing:
-                existing.value = value
-                existing.updated_at = datetime.now(timezone.utc)
-            else:
-                session.add(Refinement(target=target, value=value))
+            session.execute(
+                text(
+                    "INSERT INTO refinements (target, value, applied_at, updated_at) "
+                    "VALUES (:target, :value, :now, :now) "
+                    "ON CONFLICT(target) DO UPDATE SET value = :value, updated_at = :now"
+                ),
+                {"target": target, "value": value, "now": now},
+            )
 
     # ------------------------------------------------------------------
     # Public API

@@ -90,7 +90,8 @@ async def test_skips_already_processed(ledger):
 
 
 @pytest.mark.asyncio
-async def test_runner_failure_does_not_mark_processed(ledger):
+async def test_runner_failure_still_marks_processed(ledger):
+    """Failed goal runs mark anomalies as processed to prevent infinite retry loops."""
     anomaly = _make_anomaly()
     _insert_anomaly(ledger, anomaly)
 
@@ -102,12 +103,12 @@ async def test_runner_failure_does_not_mark_processed(ledger):
 
     with ledger.session_scope() as session:
         row = session.get(AnomalyEvent, anomaly.id)
-        assert row.processed is False
+        assert row.processed is True
 
 
 @pytest.mark.asyncio
 async def test_partial_failure_does_not_rollback_others(ledger):
-    """If anomaly 2 fails, anomaly 1 should still be marked processed."""
+    """Both successful and failed anomalies should be marked processed."""
     a1 = _make_anomaly(anomaly_type="DENSITY_SHIFT", description="first")
     a2 = _make_anomaly(anomaly_type="DENSITY_SHIFT", description="second")
     _insert_anomaly(ledger, a1)
@@ -129,8 +130,8 @@ async def test_partial_failure_does_not_rollback_others(ledger):
     with ledger.session_scope() as session:
         rows = session.query(AnomalyEvent).all()
         processed_count = sum(1 for r in rows if r.processed)
-        # At least one should be processed, and the failed one should not
-        assert processed_count == 1
+        # Both should be processed — failures are marked to prevent retry loops
+        assert processed_count == 2
 
 
 @pytest.mark.asyncio

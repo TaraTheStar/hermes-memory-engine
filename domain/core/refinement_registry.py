@@ -3,15 +3,55 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class RefinementRegistry:
     """
-    A persistent registry of approved refinements (prompts, tool configs, etc.)
+    A registry of approved refinements (prompts, tool configs, etc.)
     that agents can query to evolve their behavior dynamically.
+
+    When constructed with a ``StructuralLedger``, refinements are persisted
+    to the database and survive process restarts.  Without a ledger the
+    registry operates in-memory only (useful for tests).
     """
-    def __init__(self):
-        self._refinements: Dict[str, Any] = {}
 
     _MAX_VALUE_LENGTH = 5000
+
+    def __init__(self, ledger=None):
+        self._ledger = ledger
+        # In-memory cache — always kept in sync with the DB when a ledger
+        # is present.
+        self._refinements: Dict[str, str] = {}
+        if self._ledger is not None:
+            self._load_from_db()
+
+    # ------------------------------------------------------------------
+    # DB helpers
+    # ------------------------------------------------------------------
+
+    def _load_from_db(self) -> None:
+        """Populate the in-memory cache from the database."""
+        from domain.core.models import Refinement
+
+        with self._ledger.session_scope() as session:
+            rows = session.query(Refinement).all()
+            self._refinements = {r.target: r.value for r in rows}
+
+    def _persist(self, target: str, value: str) -> None:
+        """Upsert a single refinement row."""
+        from domain.core.models import Refinement
+        from datetime import datetime, timezone
+
+        with self._ledger.session_scope() as session:
+            existing = session.query(Refinement).filter_by(target=target).first()
+            if existing:
+                existing.value = value
+                existing.updated_at = datetime.now(timezone.utc)
+            else:
+                session.add(Refinement(target=target, value=value))
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def apply(self, proposal: Any) -> None:
         """Applies an approved refinement proposal to the registry.
@@ -35,13 +75,13 @@ class RefinementRegistry:
         logger.info("Applying refinement to '%s': %s", target, value)
         self._refinements[target] = value
 
-    def get_refinement(self, target: str) -> Optional[Any]:
+        if self._ledger is not None:
+            self._persist(target, value)
+
+    def get_refinement(self, target: str) -> Optional[str]:
         """Retrieves a refinement for a specific target component."""
         return self._refinements.get(target)
 
-    def get_all(self) -> Dict[str, Any]:
+    def get_all(self) -> Dict[str, str]:
         """Returns all currently active refinements."""
         return self._refinements.copy()
-
-# Singleton instance for easy access within the session
-registry = RefinementRegistry()

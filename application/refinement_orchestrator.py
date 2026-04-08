@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 from domain.supporting.ledger import StructuralLedger
 from application.orchestrator import Orchestrator
 from domain.core.refinement_engine import RefinementEngine, GraphRefinementProposal
+from domain.core.refinement_registry import RefinementRegistry
 from domain.core.models import Skill, RelationalEdge
 from domain.core.anomaly_detector import ContextualAnomalyDetector
 
@@ -11,14 +12,16 @@ logger = logging.getLogger(__name__)
 
 class RefinementOrchestrator:
     """
-    Manages the lifecycle of a refinement proposal: 
+    Manages the lifecycle of a refinement proposal:
     Detection -> Audit -> Execution.
     """
     def __init__(self, structural_db_path: str, registry: Dict[str, Any], llm_interface=None):
         self.ledger = StructuralLedger(structural_db_path)
         detector = ContextualAnomalyDetector()
         self.engine = RefinementEngine(self.ledger, detector)
-        self.orchestrator = Orchestrator(registry, llm_interface)
+        refinement_registry = RefinementRegistry(self.ledger)
+        self.orchestrator = Orchestrator(registry, llm_interface,
+                                         refinement_registry=refinement_registry)
         self.llm = llm_interface
 
     async def process_refinements(self) -> int:

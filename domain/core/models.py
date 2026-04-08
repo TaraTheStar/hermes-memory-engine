@@ -63,6 +63,16 @@ class IdentityMarker(Base):
     confidence_score = Column(Float, default=1.0)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
+class Refinement(Base):
+    __tablename__ = 'refinements'
+
+    target = Column(String, primary_key=True)
+    value = Column(String, nullable=False)
+    applied_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 class RelationalEdge(Base):
     __tablename__ = 'relational_edges'
     __table_args__ = (

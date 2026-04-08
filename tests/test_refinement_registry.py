@@ -1,4 +1,8 @@
+import os
+import tempfile
+import pytest
 from domain.core.refinement_registry import RefinementRegistry
+from domain.supporting.ledger import StructuralLedger
 
 
 class _FakeProposal:
@@ -41,3 +45,41 @@ class TestRefinementRegistry:
         assert reg.get_refinement("a") == "1"
         assert reg.get_refinement("b") == "2"
         assert len(reg.get_all()) == 2
+
+
+class TestRefinementRegistryPersistence:
+    """Verify refinements survive a fresh RefinementRegistry instance."""
+
+    @pytest.fixture
+    def ledger(self):
+        db_path = os.path.join(tempfile.mkdtemp(), "registry_persist.db")
+        return StructuralLedger(db_path)
+
+    def test_refinements_persist_across_instances(self, ledger):
+        reg1 = RefinementRegistry(ledger)
+        reg1.apply(_FakeProposal("prompt_v1", "be concise"))
+        reg1.apply(_FakeProposal("tool_cfg", "enable_search"))
+
+        # Create a brand-new registry backed by the same DB
+        reg2 = RefinementRegistry(ledger)
+        assert reg2.get_refinement("prompt_v1") == "be concise"
+        assert reg2.get_refinement("tool_cfg") == "enable_search"
+        assert len(reg2.get_all()) == 2
+
+    def test_overwrite_persists(self, ledger):
+        reg1 = RefinementRegistry(ledger)
+        reg1.apply(_FakeProposal("prompt_v1", "first"))
+        reg1.apply(_FakeProposal("prompt_v1", "second"))
+
+        reg2 = RefinementRegistry(ledger)
+        assert reg2.get_refinement("prompt_v1") == "second"
+
+    def test_no_ledger_means_no_persistence(self):
+        """Without a ledger, registry is purely in-memory (no crash)."""
+        reg = RefinementRegistry()
+        reg.apply(_FakeProposal("a", "1"))
+        assert reg.get_refinement("a") == "1"
+
+        # A second instance has no knowledge of the first
+        reg2 = RefinementRegistry()
+        assert reg2.get_all() == {}

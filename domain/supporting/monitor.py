@@ -27,11 +27,10 @@ class StateTracker:
         metrics = self.analyzer.get_centrality_metrics()
         communities = self.analyzer.detect_communities()
 
+        import networkx as nx
+
         nodes_count = len(self.analyzer.graph.nodes)
-        edges_count = len(self.analyzer.graph.edges)
-        density = 0.0
-        if nodes_count > 1:
-            density = (2 * edges_count) / (nodes_count * (nodes_count - 1))
+        density = nx.density(self.analyzer.graph)
 
         snapshot = GraphSnapshot(
             id=str(uuid.uuid4()),
@@ -39,7 +38,7 @@ class StateTracker:
             density=density,
             community_count=len(communities),
             centrality_metrics=metrics,
-            metadata_tags={"node_count": nodes_count, "edge_count": edges_count}
+            metadata_tags={"node_count": nodes_count, "edge_count": len(self.analyzer.graph.edges)}
         )
 
         with self.ledger.session_scope() as session:

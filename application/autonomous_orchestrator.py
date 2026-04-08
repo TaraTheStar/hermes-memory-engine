@@ -34,17 +34,21 @@ class AutonomousOrchestrator(Orchestrator, GoalRunner):
         self._is_running = False
         self._processed_event_ids: OrderedDict[str, None] = OrderedDict()
         self._max_processed_ids = 10000
+        self._event_failure_counts: Dict[str, int] = {}
+        self._max_event_retries = 3
         self._consecutive_errors = 0
         self._max_consecutive_errors = 5
+        self._start_lock = asyncio.Lock()
 
     async def start_monitoring(self, interval_seconds: int = 300, context: Dict[str, Any] = None):
         """Starts the background monitoring loop."""
-        if self._is_running:
-            logger.warning("Monitoring is already running.")
-            return
+        async with self._start_lock:
+            if self._is_running:
+                logger.warning("Monitoring is already running.")
+                return
 
-        self._monitoring_task = asyncio.create_task(self._monitoring_loop(interval_seconds, context or {}))
-        self._is_running = True
+            self._is_running = True
+            self._monitoring_task = asyncio.create_task(self._monitoring_loop(interval_seconds, context or {}))
         logger.info(f"Autonomous monitoring started with {interval_seconds}s interval.")
 
     async def stop_monitoring(self):
@@ -76,14 +80,23 @@ class AutonomousOrchestrator(Orchestrator, GoalRunner):
                             event_id = event.get('id')
                             if event_id in self._processed_event_ids:
                                 continue
+                            if self._event_failure_counts.get(event_id, 0) >= self._max_event_retries:
+                                logger.warning("Event %s failed %d times, skipping permanently.", event_id, self._max_event_retries)
+                                self._processed_event_ids[event_id] = None
+                                continue
                             metadata = event.get('metadata') or {}
                             if "milestone" in metadata.get('type', '') or "integration" in event['text'].lower():
                                 from domain.core.prompt_sanitizer import sanitize_field
                                 goal = f"Investigate the recent semantic milestone: {sanitize_field(event['text'], 'event_text')}"
                                 logger.info(f"Trigger detected! New Goal: {goal}")
-                                await self.run_goal(goal, context)
-                                # Mark processed only after successful execution
-                                self._processed_event_ids[event_id] = None
+                                try:
+                                    await self.run_goal(goal, context)
+                                    self._processed_event_ids[event_id] = None
+                                except Exception as goal_err:
+                                    self._event_failure_counts[event_id] = self._event_failure_counts.get(event_id, 0) + 1
+                                    logger.warning("Goal for event %s failed (attempt %d/%d): %s",
+                                                   event_id, self._event_failure_counts[event_id], self._max_event_retries, goal_err)
+                                    continue
                                 # Evict oldest IDs to prevent unbounded growth
                                 while len(self._processed_event_ids) > self._max_processed_ids:
                                     self._processed_event_ids.popitem(last=False)

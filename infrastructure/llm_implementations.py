@@ -5,7 +5,7 @@ from domain.supporting.config_loader import ConfigLoader
 logger = logging.getLogger(__name__)
 from openai import OpenAI
 from domain.core.acl.llm_translator import LLMTranslator
-from domain.core.events import LLMInfrastructureError
+from domain.core.events import LLMInfrastructureError, InfrastructureErrorEvent
 
 class LocalLLMImplementation(BaseLLMInterface):
     """
@@ -41,7 +41,11 @@ class LocalLLMImplementation(BaseLLMInterface):
                 temperature=0.7
             )
             if not response.choices:
-                raise LLMInfrastructureError("LLM returned empty choices list")
+                raise LLMInfrastructureError(InfrastructureErrorEvent(
+                    source="LocalLLMImplementation",
+                    error_code="EMPTY_CHOICES",
+                    original_exception="LLM returned empty choices list",
+                ))
             return self.translator.transform_data(response.choices[0].message.content)
         except Exception as e:
             event = self.translator.translate_exception(e)

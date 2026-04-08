@@ -93,6 +93,7 @@ class SynthesisEngine:
                             edge_key = (ms.id, event['id'])
                             if edge_key not in existing_edges:
                                 try:
+                                    nested = session.begin_nested()
                                     self.ledger.add_edge(
                                         source_id=ms.id,
                                         target_id=event['id'],
@@ -100,11 +101,11 @@ class SynthesisEngine:
                                         weight=0.5,
                                         session=session
                                     )
+                                    nested.commit()
                                     existing_edges.add(edge_key)
                                     new_edges_count += 1
                                 except Exception as e:
                                     logger.warning("Failed to add temporal edge %s->%s: %s", ms.id, event['id'], e)
-                                    session.rollback()
 
                 # Check against skills
                 for sk in skills:
@@ -117,6 +118,7 @@ class SynthesisEngine:
                             edge_key = (sk.id, event['id'])
                             if edge_key not in existing_edges:
                                 try:
+                                    nested = session.begin_nested()
                                     self.ledger.add_edge(
                                         source_id=sk.id,
                                         target_id=event['id'],
@@ -124,11 +126,11 @@ class SynthesisEngine:
                                         weight=0.5,
                                         session=session
                                     )
+                                    nested.commit()
                                     existing_edges.add(edge_key)
                                     new_edges_count += 1
                                 except Exception as e:
                                     logger.warning("Failed to add temporal edge %s->%s: %s", sk.id, event['id'], e)
-                                    session.rollback()
 
         self._save_watermark(self._TEMPORAL_WATERMARK_KEY, scan_start)
         self._last_temporal_scan = scan_start
@@ -186,6 +188,7 @@ class SynthesisEngine:
                         edge_key = (e1['id'], e2['id'])
                         if edge_key not in existing_edges:
                             try:
+                                nested = session.begin_nested()
                                 self.ledger.add_edge(
                                     source_id=e1['id'],
                                     target_id=e2['id'],
@@ -193,11 +196,11 @@ class SynthesisEngine:
                                     weight=similarity,
                                     session=session
                                 )
+                                nested.commit()
                                 existing_edges.add(edge_key)
                                 new_edges_count += 1
                             except Exception as e:
                                 logger.warning("Failed to add similarity edge %s->%s: %s", e1['id'], e2['id'], e)
-                                session.rollback()
 
         self._save_watermark(self._COOCCURRENCE_WATERMARK_KEY, scan_start)
         self._last_cooccurrence_scan = scan_start
@@ -233,6 +236,7 @@ class SynthesisEngine:
                         edge_key = (s1.id, s2.id)
                         if edge_key not in existing_edges:
                             try:
+                                nested = session.begin_nested()
                                 self.ledger.add_edge(
                                     source_id=s1.id,
                                     target_id=s2.id,
@@ -240,10 +244,10 @@ class SynthesisEngine:
                                     weight=0.8,
                                     session=session
                                 )
+                                nested.commit()
                                 existing_edges.add(edge_key)
                                 new_edges_count += 1
                             except Exception as e:
                                 logger.warning("Failed to add symmetry edge %s->%s: %s", s1.id, s2.id, e)
-                                session.rollback()
 
         return new_edges_count

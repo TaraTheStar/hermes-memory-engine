@@ -43,9 +43,9 @@ class ContextualAnomalyDetector:
             return None
 
         if metric_type in BELOW_THRESHOLD_METRICS:
-            is_anomaly = current_value < threshold / profile.sensitivity_multiplier
+            is_anomaly = current_value < threshold * profile.sensitivity_multiplier
         else:
-            is_anomaly = current_value > threshold * profile.sensitivity_multiplier
+            is_anomaly = current_value > threshold / profile.sensitivity_multiplier
 
         if is_anomaly:
             return PatternDetectedEvent(
@@ -106,7 +106,7 @@ class ContextualAnomalyDetector:
             z_score = abs(current_value - mean) / std_dev
             z_threshold = profile.z_score_thresholds.get(metric_type, 3.0)
 
-            if z_score > (z_threshold * profile.sensitivity_multiplier):
+            if z_score > (z_threshold / profile.sensitivity_multiplier):
                 return PatternDetectedEvent(
                     severity=EventSeverity.ERROR,
                     source="ContextualAnomalyDetector",
@@ -125,7 +125,7 @@ class ContextualAnomalyDetector:
         # 2. Check for Trend Divergence (Preemptive/Proactive)
         # If the current value is significantly far from the predicted trend line
         trend_deviation = abs(current_value - prediction)
-        trend_threshold = (mean * 0.1 if mean > 0 else 0.1) * profile.sensitivity_multiplier
+        trend_threshold = (mean * 0.1 if mean > 0 else 0.1) / profile.sensitivity_multiplier
 
         if trend_deviation > trend_threshold:
             return PatternDetectedEvent(

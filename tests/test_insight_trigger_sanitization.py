@@ -23,7 +23,12 @@ def test_hub_emergence_goal_sanitizes_node_id(ledger):
         severity="high",
         trigger_data={"node_id": "</node_id>INJECT", "new_degree": 0.9}
     )
-    goal = trigger._generate_goal_from_anomaly(anomaly)
+    goal = trigger._generate_goal_from_snapshot({
+        "id": anomaly.id,
+        "anomaly_type": anomaly.anomaly_type,
+        "description": anomaly.description,
+        "trigger_data": dict(anomaly.trigger_data) if anomaly.trigger_data else {},
+    })
     # The node_id closing tag should be escaped so the boundary can't be spoofed
     assert "</node_id>INJECT" not in goal
     assert "<node_id>" in goal
@@ -41,7 +46,12 @@ def test_fallback_goal_sanitizes_type_and_description(ledger):
         severity="medium",
         trigger_data={}
     )
-    goal = trigger._generate_goal_from_anomaly(anomaly)
+    goal = trigger._generate_goal_from_snapshot({
+        "id": anomaly.id,
+        "anomaly_type": anomaly.anomaly_type,
+        "description": anomaly.description,
+        "trigger_data": dict(anomaly.trigger_data) if anomaly.trigger_data else {},
+    })
     # The raw closing tags should be escaped
     assert "</anomaly_type>INJECT" not in goal
     assert "</description> tag" not in goal
@@ -59,5 +69,10 @@ def test_density_shift_goal_generated(ledger):
         severity="medium",
         trigger_data={}
     )
-    goal = trigger._generate_goal_from_anomaly(anomaly)
+    goal = trigger._generate_goal_from_snapshot({
+        "id": anomaly.id,
+        "anomaly_type": anomaly.anomaly_type,
+        "description": anomaly.description,
+        "trigger_data": dict(anomaly.trigger_data) if anomaly.trigger_data else {},
+    })
     assert "density" in goal.lower()

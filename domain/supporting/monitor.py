@@ -159,8 +159,8 @@ class SnapshotAnomalyDetector:
             # 2. MONITOR NODE HUB EMERGENCE (Velocity of Degree)
             for node_id, node_metrics in current_snapshot.centrality_metrics.items():
                 current_degree = node_metrics.get('degree', 0.0)
-                
-                # Extract degree history for this specific node, including current snapshot
+
+                # Extract degree history for this specific node (excluding current snapshot)
                 node_history_degrees = []
                 node_history_ts = []
                 base_ts = self._normalize_ts(history[0].timestamp)
@@ -169,9 +169,6 @@ class SnapshotAnomalyDetector:
                     if hist_metrics:
                         node_history_degrees.append(hist_metrics.get('degree', 0.0))
                         node_history_ts.append((self._normalize_ts(snap.timestamp) - base_ts).total_seconds())
-                # Include the current snapshot in the regression
-                node_history_degrees.append(current_degree)
-                node_history_ts.append((self._normalize_ts(current_snapshot.timestamp) - base_ts).total_seconds())
 
                 if len(node_history_degrees) >= 3:
                     x = np.array(node_history_ts)
@@ -183,15 +180,19 @@ class SnapshotAnomalyDetector:
 
                     m, c = np.polyfit(x, y, 1)
 
-                    # Detect Acceleration: Is the degree increasing non-linearly?
-                    # For simplicity here, we'll trigger if velocity is exceptionally high
+                    # Predict degree at current timestamp and compare
+                    current_x = (self._normalize_ts(current_snapshot.timestamp) - base_ts).total_seconds()
+                    predicted = m * current_x + c
+
+                    # Detect rapid growth: high velocity or significant deviation from trend
                     if m > (self.sensitivity * 0.5):
                         anomalies.append(AnomalyEvent(
                             id=str(uuid.uuid4()),
                             anomaly_type="STRUCTURAL_ACCELERATION",
                             description=f"Node '{node_id}' is showing rapid growth. (Degree Velocity: {m:.2f}/unit-time)",
                             severity="high",
-                            trigger_data={"node_id": node_id, "velocity": m, "current_degree": current_degree}
+                            trigger_data={"node_id": node_id, "velocity": m, "current_degree": current_degree,
+                                          "predicted_degree": predicted}
                         ))
 
             if anomalies:

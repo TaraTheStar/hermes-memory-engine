@@ -111,7 +111,7 @@ class SemanticMemory:
             return []
 
         fetch_count = min(total, self._MAX_LIST_FETCH)
-        results = self.collection.get(limit=fetch_count)
+        results = self.collection.get(limit=fetch_count, include=['documents', 'metadatas'])
         formatted_results = []
         for i in range(len(results['ids'])):
             metadata = results['metadatas'][i]

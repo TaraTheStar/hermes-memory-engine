@@ -102,10 +102,10 @@ def test_sensitivity_multiplier(detector):
     sensitive_profile = ThresholdProfile(
         name="sensitive",
         thresholds={MetricType.COMMUNITY_SIZE: 10.0},
-        sensitivity_multiplier=0.5,  # Makes threshold effectively 5.0
+        sensitivity_multiplier=2.0,  # Makes threshold effectively 5.0
     )
     detector.register_profile("sensitive_ctx", sensitive_profile)
-    # 7.0 > 10.0 * 0.5 = 5.0, so should trigger
+    # 7.0 > 10.0 / 2.0 = 5.0, so should trigger
     result = detector.evaluate_metric(
         MetricType.COMMUNITY_SIZE, 7.0, context_id="sensitive_ctx"
     )

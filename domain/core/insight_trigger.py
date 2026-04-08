@@ -65,16 +65,6 @@ class InsightTrigger:
                 logger.warning("Could not generate goal for anomaly: %s — skipping.",
                                snap["anomaly_type"])
 
-    def _generate_goal_from_anomaly(self, anomaly: AnomalyEvent) -> str:
-        """Convenience wrapper for callers that have an ORM object."""
-        snap = {
-            "id": anomaly.id,
-            "anomaly_type": anomaly.anomaly_type,
-            "description": anomaly.description,
-            "trigger_data": dict(anomaly.trigger_data) if anomaly.trigger_data else {},
-        }
-        return self._generate_goal_from_snapshot(snap)
-
     def _generate_goal_from_snapshot(self, snap: Dict[str, Any]) -> str:
         """
         Translates a structural event into a sophisticated natural language goal.
@@ -86,14 +76,14 @@ class InsightTrigger:
 
         if a_type == "HUB_EMERGENCE":
             node_id = sanitize_field(data.get("node_id", "Unknown Node"), "node_id")
-            new_deg = data.get("new_degree", 0.0)
+            new_deg = float(data.get("new_degree", 0.0))
             return (f"Investigate the sudden emergence of {node_id} as a significant hub. "
                     f"It has reached a degree centrality of {new_deg:.2f}. "
                     "Analyze its role in bridging disparate knowledge domains and its potential impact on overall connectivity.")
 
         elif a_type == "COMMUNITY_SHIFT":
-            old_c = data.get("old_count", 0)
-            new_c = data.get("new_count", 0)
+            old_c = int(data.get("old_count", 0))
+            new_c = int(data.get("new_count", 0))
             return (f"Analyze the significant shift in community structure. "
                     f"The knowledge cluster count changed from ~{old_c} to {new_c}. "
                     "Identify if this represents a merger of existing domains or a fragmentation of a major cluster.")

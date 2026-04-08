@@ -20,13 +20,51 @@ class AgentTask:
         self.constraints = constraints or []
         self.created_at = datetime.datetime.now(timezone.utc)
 
+from typing import Dict, Any, Optional, List, Protocol, Union
+
+class RefinementProposal:
+    """Represents a self-optimization proposal from an agent."""
+    PROMPT_REFINEMENT = "PROMPT_REFINEMENT"
+    TOOL_EXPANSION = "TOOL_EXPANSION"
+
+    def __init__(self, 
+                 proposal_type: str, 
+                 target_component: str, 
+                 current_state: str, 
+                 proposed_state: str, 
+                 rationale: str):
+        self.proposal_type = proposal_type  # 'PROMPT_REFINEMENT' | 'TOOL_EXPANSION'
+        self.target_component = target_component
+        self.current_state = current_state
+        self.proposed_state = proposed_state
+        self.rationale = rationale
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "type": self.proposal_type,
+            "target": self.target_component,
+            "current": self.current_state,
+            "proposed": self.proposed_state,
+            "rationale": self.rationale
+        }
+
+class RefinementType:
+    PROMPT_REFINEMENT = "PROMPT_REFINEMENT"
+    TOOL_EXPANSION = "TOOL_EXPANSION"
+
 class AgentResult:
     """Represents the outcome of an agent's execution."""
-    def __init__(self, finding: str, confidence: float, evidence: List[Dict[str, Any]], status: str = AgentStatus.COMPLETED):
+    def __init__(self, 
+                 finding: str, 
+                 confidence: float, 
+                 evidence: List[Dict[str, Any]], 
+                 status: str = AgentStatus.COMPLETED,
+                 refinement_proposal: Optional[RefinementProposal] = None):
         self.finding = finding
         self.confidence = confidence
         self.evidence = evidence
         self.status = status
+        self.refinement_proposal = refinement_proposal
         self.completed_at = datetime.datetime.now(timezone.utc)
 
 class HermesAgent(ABC):
@@ -48,7 +86,7 @@ class HermesAgent(ABC):
 
         State transitions:
             IDLE -> THINKING -> ACTING -> REFLECTING -> REPORTING -> COMPLETED
-                    \\____________any stage____________/ -> FAILED (on exception)
+                    \____________any stage____________/ -> FAILED (on exception)
 
         Stages:
             THINKING:    _plan() decomposes the goal into sub-tasks.

@@ -139,3 +139,100 @@ class AuditorAgent(HermesAgent):
             confidence=confidence,
             evidence=evidence
         )
+
+class RefinementAgent(HermesAgent):
+    """
+    A specialized agent that acts as the 'Critic' for the system.
+    Its sole purpose is to evaluate RefinementProposal objects emitted by other agents
+    and determine if they should be accepted, rejected, or modified.
+    """
+    async def _plan(self, task: AgentTask, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        # The task is to evaluate a single proposal.
+        return [{"action": "evaluate_proposal", "proposal": task.goal}]
+
+    async def _execute_plan(self, plan: List[Dict[str, Any]], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        findings = []
+        
+        for step in plan:
+            if step["action"] == "evaluate_proposal":
+                # In a real implementation, the proposal itself would be passed in the task or context.
+                # For this simulation, we assume the proposal object is available.
+                proposal = context.get("active_refinement_proposal")
+                
+                if not proposal:
+                    findings.append({"type": "error", "message": "No active refinement proposal found in context."})
+                    continue
+
+                # The 'RefinementAgent' uses the LLM to perform a high-reasoning critique.
+                prompt = (
+                    "You are the Meta-Orchestrator Critic. Your role is to ensure system evolution is safe, "
+                    "effective, and logically sound. Evaluate the following proposal.\n\n"
+                    f"Proposal Type: {proposal.proposal_type}\n"
+                    f"Target Component: {proposal.target_component}\n"
+                    f"Current State: {proposal.current_state}\n"
+                    f"Proposed State: {proposal.proposed_state}\n"
+                    f"Rationale: {proposal.rationale}\n\n"
+                    "Criteria:\n"
+                    "1. Safety: Does this change risk breaking core agent logic or stability?\n"
+                    "2. Utility: Does this change actually address the deficiency noted in the rationale?\n"
+                    "3. Precision: Is the proposed state a meaningful improvement over the current state?\n\n"
+                    "Respond in JSON format:\n"
+                    "{\n"
+                    "  \"approved\": boolean,\n"
+                    "  \"reasoning\": \"detailed explanation of your decision\",\n"
+                    "  \"suggested_modification\": \"(optional) if the proposal is good but needs slight adjustment\"\n"
+                    "}"
+                )
+                
+                try:
+                    # Use asyncio.to_thread for the blocking LLM call
+                    raw_response = await asyncio.to_thread(self.llm.complete, prompt)
+                    
+                    # Clean markdown if the LLM included it
+                    cleaned_response = raw_response.strip()
+                    if cleaned_response.startswith("```"):
+                        cleaned_response = cleaned_response.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                    
+                    import json
+                    decision = json.loads(cleaned_response)
+                    findings.append({
+                        "type": "critique_result",
+                        "decision": decision
+                    })
+                except Exception as e:
+                    findings.append({"type": "error", "message": f"Critique failed: {str(e)}"})
+
+        return findings
+
+    async def _reflect(self, findings: List[Dict[str, Any]], task: AgentTask, context: Dict[str, Any]) -> AgentResult:
+        summary = "Refinement evaluation complete."
+        confidence = 0.0
+        evidence = []
+        refinement_proposal = None
+
+        for finding in findings:
+            if finding["type"] == "error":
+                summary = finding["message"]
+                confidence = 0.0
+                continue
+
+            if finding["type"] == "critique_result":
+                decision = finding["decision"]
+                evidence.append(decision)
+                
+                approved = decision.get("approved", False)
+                reasoning = decision.get("reasoning", "No reasoning provided.")
+                summary = f"Critic Decision: {'APPROVED' if approved else 'REJECTED'}. Reasoning: {reasoning}"
+                
+                if approved:
+                    confidence = 0.95
+                    # In a real system, we might return a modified proposal here
+                else:
+                    confidence = 0.5
+        
+        return AgentResult(
+            finding=summary,
+            confidence=confidence,
+            evidence=evidence,
+            refinement_proposal=None # The Critic doesn't propose refinements to itself in this loop
+        )

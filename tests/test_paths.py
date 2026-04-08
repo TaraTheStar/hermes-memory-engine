@@ -2,13 +2,22 @@
 import os
 import pytest
 from unittest.mock import patch
-from infrastructure.paths import _base_dir, default_structural_db, default_semantic_dir, _LOCAL_BASE
+from infrastructure.paths import (
+    _base_dir, default_structural_db, default_semantic_dir,
+    _LOCAL_BASE, _validate_data_path,
+)
 
 
 class TestBaseDir:
     def test_explicit_env_var_takes_precedence(self):
-        with patch.dict(os.environ, {"HERMES_DATA_DIR": "/custom/path"}, clear=False):
-            assert _base_dir() == "/custom/path"
+        allowed_sub = os.path.join(_LOCAL_BASE, "custom")
+        with patch.dict(os.environ, {"HERMES_DATA_DIR": allowed_sub}, clear=False):
+            assert _base_dir() == os.path.realpath(allowed_sub)
+
+    def test_explicit_env_var_rejects_outside_roots(self):
+        with patch.dict(os.environ, {"HERMES_DATA_DIR": "/tmp/evil"}, clear=False):
+            with pytest.raises(ValueError, match="resolves outside allowed roots"):
+                _base_dir()
 
     def test_docker_path_when_exists(self, tmp_path):
         docker_path = str(tmp_path / "docker_data")
@@ -27,24 +36,40 @@ class TestBaseDir:
 
 
 class TestDefaultStructuralDb:
-    def test_env_var_override(self):
-        with patch.dict(os.environ, {"HERMES_STRUCTURAL_DB": "/my/db.sqlite"}, clear=False):
-            assert default_structural_db() == "/my/db.sqlite"
+    def test_env_var_override_allowed(self):
+        allowed = os.path.join(_LOCAL_BASE, "db.sqlite")
+        with patch.dict(os.environ, {"HERMES_STRUCTURAL_DB": allowed}, clear=False):
+            assert default_structural_db() == os.path.realpath(allowed)
+
+    def test_env_var_override_rejected(self):
+        with patch.dict(os.environ, {"HERMES_STRUCTURAL_DB": "/tmp/evil.db"}, clear=False):
+            with pytest.raises(ValueError, match="resolves outside allowed roots"):
+                default_structural_db()
 
     def test_default_uses_base_dir(self):
-        with patch.dict(os.environ, {"HERMES_DATA_DIR": "/test_base"}, clear=False):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("HERMES_DATA_DIR", None)
             os.environ.pop("HERMES_STRUCTURAL_DB", None)
-            result = default_structural_db()
-            assert result == "/test_base/structural/structure.db"
+            with patch("infrastructure.paths._DOCKER_BASE", "/nonexistent_docker_path_12345"):
+                result = default_structural_db()
+                assert result == os.path.join(_LOCAL_BASE, "structural", "structure.db")
 
 
 class TestDefaultSemanticDir:
-    def test_env_var_override(self):
-        with patch.dict(os.environ, {"HERMES_SEMANTIC_DIR": "/my/chroma"}, clear=False):
-            assert default_semantic_dir() == "/my/chroma"
+    def test_env_var_override_allowed(self):
+        allowed = os.path.join(_LOCAL_BASE, "chroma")
+        with patch.dict(os.environ, {"HERMES_SEMANTIC_DIR": allowed}, clear=False):
+            assert default_semantic_dir() == os.path.realpath(allowed)
+
+    def test_env_var_override_rejected(self):
+        with patch.dict(os.environ, {"HERMES_SEMANTIC_DIR": "/tmp/evil"}, clear=False):
+            with pytest.raises(ValueError, match="resolves outside allowed roots"):
+                default_semantic_dir()
 
     def test_default_uses_base_dir(self):
-        with patch.dict(os.environ, {"HERMES_DATA_DIR": "/test_base"}, clear=False):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("HERMES_DATA_DIR", None)
             os.environ.pop("HERMES_SEMANTIC_DIR", None)
-            result = default_semantic_dir()
-            assert result == "/test_base/semantic/chroma_db"
+            with patch("infrastructure.paths._DOCKER_BASE", "/nonexistent_docker_path_12345"):
+                result = default_semantic_dir()
+                assert result == os.path.join(_LOCAL_BASE, "semantic", "chroma_db")

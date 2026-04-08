@@ -54,7 +54,7 @@ class YouTubeContentSkill:
                 "--", canonical_url
             ]
 
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120)
 
             # Find the .srt file yt-dlp created in our private directory
             found_file = None

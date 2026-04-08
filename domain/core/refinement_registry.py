@@ -1,7 +1,12 @@
 from typing import Dict, Any, Optional
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Strip XML-like tags from refinement values to prevent prompt boundary spoofing
+# when the stored value is later interpolated into LLM prompts.
+_XML_TAG_RE = re.compile(r'</?[a-zA-Z][a-zA-Z0-9_-]*[^>]*>')
 
 
 class RefinementRegistry:
@@ -90,6 +95,8 @@ class RefinementRegistry:
             logger.warning("Rejecting refinement: proposed_state exceeds %d chars", self._MAX_VALUE_LENGTH)
             return
 
+        # Strip XML-like tags to prevent prompt boundary injection
+        value = _XML_TAG_RE.sub('', value)
         logger.info("Applying refinement to '%s': %s", target, value)
         self._refinements[target] = value
 

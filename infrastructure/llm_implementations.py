@@ -38,7 +38,8 @@ class LocalLLMImplementation(BaseLLMInterface):
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
-                temperature=0.7
+                temperature=0.7,
+                timeout=120
             )
             if not response.choices:
                 raise LLMInfrastructureError(InfrastructureErrorEvent(
@@ -47,6 +48,8 @@ class LocalLLMImplementation(BaseLLMInterface):
                     original_exception="LLM returned empty choices list",
                 ))
             return self.translator.transform_data(response.choices[0].message.content)
+        except LLMInfrastructureError:
+            raise
         except Exception as e:
             event = self.translator.translate_exception(e)
             logger.error("Caught LLM exception: %s", event)

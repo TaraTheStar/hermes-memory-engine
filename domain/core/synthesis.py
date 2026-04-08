@@ -81,7 +81,7 @@ class SynthesisEngine:
                 event_time = event_time_raw if event_time_raw.tzinfo else event_time_raw.replace(tzinfo=timezone.utc)
 
                 # Skip events already processed in a previous scan
-                if self._last_temporal_scan and event_time <= self._last_temporal_scan:
+                if self._last_temporal_scan and event_time < self._last_temporal_scan:
                     continue
                 event_text = event.get('text', '').lower()
 
@@ -105,6 +105,7 @@ class SynthesisEngine:
                                     existing_edges.add(edge_key)
                                     new_edges_count += 1
                                 except Exception as e:
+                                    nested.rollback()
                                     logger.warning("Failed to add temporal edge %s->%s: %s", ms.id, event['id'], e)
 
                 # Check against skills
@@ -130,10 +131,11 @@ class SynthesisEngine:
                                     existing_edges.add(edge_key)
                                     new_edges_count += 1
                                 except Exception as e:
+                                    nested.rollback()
                                     logger.warning("Failed to add temporal edge %s->%s: %s", sk.id, event['id'], e)
 
-        self._save_watermark(self._TEMPORAL_WATERMARK_KEY, scan_start)
-        self._last_temporal_scan = scan_start
+            self._save_watermark(self._TEMPORAL_WATERMARK_KEY, scan_start)
+            self._last_temporal_scan = scan_start
         return new_edges_count
 
     def run_semantic_cooccurrence_scan(self, similarity_threshold: float = 0.7) -> int:
@@ -171,7 +173,7 @@ class SynthesisEngine:
                                 t_j = datetime.fromisoformat(ts_j)
                                 t_i = t_i if t_i.tzinfo else t_i.replace(tzinfo=timezone.utc)
                                 t_j = t_j if t_j.tzinfo else t_j.replace(tzinfo=timezone.utc)
-                                if t_i <= self._last_cooccurrence_scan and t_j <= self._last_cooccurrence_scan:
+                                if t_i < self._last_cooccurrence_scan and t_j < self._last_cooccurrence_scan:
                                     continue
                         except (ValueError, TypeError) as e:
                             logger.warning("Skipping cooccurrence pair due to bad timestamp: %s", e)
@@ -200,10 +202,11 @@ class SynthesisEngine:
                                 existing_edges.add(edge_key)
                                 new_edges_count += 1
                             except Exception as e:
+                                nested.rollback()
                                 logger.warning("Failed to add similarity edge %s->%s: %s", e1['id'], e2['id'], e)
 
-        self._save_watermark(self._COOCCURRENCE_WATERMARK_KEY, scan_start)
-        self._last_cooccurrence_scan = scan_start
+            self._save_watermark(self._COOCCURRENCE_WATERMARK_KEY, scan_start)
+            self._last_cooccurrence_scan = scan_start
         return new_edges_count
 
     def run_attribute_symmetry_scan(self) -> int:
@@ -248,6 +251,7 @@ class SynthesisEngine:
                                 existing_edges.add(edge_key)
                                 new_edges_count += 1
                             except Exception as e:
+                                nested.rollback()
                                 logger.warning("Failed to add symmetry edge %s->%s: %s", s1.id, s2.id, e)
 
         return new_edges_count

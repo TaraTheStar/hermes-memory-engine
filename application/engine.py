@@ -85,11 +85,15 @@ class MemoryEngine:
         from domain.supporting.ledger import StructuralLedger
         self.ledger = StructuralLedger(structural_db_path)
 
+    _MAX_INPUT_LENGTH = 50_000
+
     def ingest_interaction(self, user_text: str, assistant_text: str, instructions: Optional[List[Dict[str, Any]]] = None):
         """
         Processes an interaction and stores discovered events.
         Instructions can include a list of dicts with 'event' (Event object) and optional 'structural_id'.
         """
+        user_text = (user_text or "")[:self._MAX_INPUT_LENGTH]
+        assistant_text = (assistant_text or "")[:self._MAX_INPUT_LENGTH]
         if instructions:
             for instr in instructions:
                 event = instr.get('event')

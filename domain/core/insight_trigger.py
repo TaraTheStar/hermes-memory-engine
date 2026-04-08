@@ -35,7 +35,7 @@ class InsightTrigger:
         with self.ledger.session_scope() as session:
             unprocessed = session.query(AnomalyEvent).filter(
                 AnomalyEvent.processed.is_(False)
-            ).order_by(AnomalyEvent.timestamp.desc()).limit(5).all()
+            ).order_by(AnomalyEvent.timestamp.asc()).limit(5).all()
 
             if not unprocessed:
                 logger.info("No unprocessed anomalies to handle.")

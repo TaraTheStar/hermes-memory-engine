@@ -1,7 +1,11 @@
 import yaml
 import os
+import stat
+import logging
 from typing import Dict, Any, Optional
 from domain.core.acl.storage_translator import StorageTranslator
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = os.environ.get('HERMES_CONFIG_PATH', '/opt/data/config.yaml')
 
@@ -42,6 +46,18 @@ class ConfigLoader:
                 f"Configuration file not found at {self.config_path}. "
                 f"Set the HERMES_CONFIG_PATH environment variable to specify a custom path."
             )
+
+        # Warn if the config file (which may contain API keys) is world-readable
+        try:
+            file_mode = os.stat(self.config_path).st_mode
+            if file_mode & stat.S_IROTH:
+                logger.warning(
+                    "Config file %s is world-readable (mode %o). "
+                    "Consider restricting permissions: chmod 600 %s",
+                    self.config_path, file_mode & 0o777, self.config_path
+                )
+        except OSError:
+            pass
 
         try:
             with open(self.config_path, 'r') as f:

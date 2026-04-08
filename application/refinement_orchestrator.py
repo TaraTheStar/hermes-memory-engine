@@ -50,8 +50,9 @@ class RefinementOrchestrator:
             if self._is_approved(audit_result):
                 logger.info("Proposal APPROVED by Auditor.")
                 # 2. Execution Phase
-                await self._execute_proposal(proposal)
-                executed_count += 1
+                success = await self._execute_proposal(proposal)
+                if success:
+                    executed_count += 1
             else:
                 logger.info("Proposal REJECTED by Auditor. Skipping.")
 
@@ -91,17 +92,18 @@ class RefinementOrchestrator:
     _SENTENCE_BOUNDARY = re.compile(r'[.!?]\s+')
 
     def _contains_unmitigated_veto(self, text: str) -> bool:
-        """Returns True if text contains a veto phrase NOT negated within the same clause."""
+        """Returns True if text contains a veto phrase NOT negated within the same sentence."""
         for match in self._VETO_PHRASES.finditer(text):
             # Find the sentence containing the veto phrase by locating
             # the nearest sentence boundary before and after the match.
             sentence_start = 0
+            sentence_end = len(text)
             for boundary in self._SENTENCE_BOUNDARY.finditer(text):
                 if boundary.end() <= match.start():
                     sentence_start = boundary.end()
-                else:
-                    break
-            clause = text[sentence_start:match.end()]
+                elif sentence_end == len(text):
+                    sentence_end = boundary.start()
+            clause = text[sentence_start:sentence_end]
             if not self._NEGATION_PREFIX.search(clause):
                 return True
         return False

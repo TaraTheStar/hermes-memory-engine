@@ -125,7 +125,7 @@ class ContextualAnomalyDetector:
         # 2. Check for Trend Divergence (Preemptive/Proactive)
         # If the current value is significantly far from the predicted trend line
         trend_deviation = abs(current_value - prediction)
-        trend_threshold = (mean * 0.1 if mean > 0 else 0.1) / profile.sensitivity_multiplier
+        trend_threshold = (abs(mean) * 0.1 if abs(mean) > 1e-9 else 0.1) / profile.sensitivity_multiplier
 
         if trend_deviation > trend_threshold:
             return PatternDetectedEvent(

@@ -95,7 +95,7 @@ class SemanticMemory:
                 
         return formatted_results
 
-    _MAX_LIST_FETCH = 5000
+    _MAX_LIST_FETCH = 500
 
     def list_events(self, limit: int = 10, context_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """

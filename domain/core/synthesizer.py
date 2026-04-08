@@ -38,20 +38,20 @@ class InsightSynthesizer:
         sorted_by_degree = sorted(metrics.items(), key=lambda x: x[1]['degree'], reverse=True)
         pillars = []
         for node_id, m in sorted_by_degree[:3]:
-            name = sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name", max_length=200)
+            name = sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name")
             pillars.append(f"- {name} (Degree: {m['degree']:.2f})")
 
         # Extract bridges
         sorted_by_betweenness = sorted(metrics.items(), key=lambda x: x[1]['betweenness'], reverse=True)
         bridges = []
         for node_id, m in sorted_by_betweenness[:3]:
-            name = sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name", max_length=200)
+            name = sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name")
             bridges.append(f"- {name} (Betweenness: {m['betweenness']:.2f})")
 
         # Extract clusters
         clusters = []
         for i, community in enumerate(communities):
-            names = [sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name", max_length=200) for node_id in community]
+            names = [sanitize_field(str(node_metadata.get(node_id, node_id)), "node_name") for node_id in community]
             clusters.append(f"Cluster {i+1}: {', '.join(names[:5])}")
 
         prompt = f"""

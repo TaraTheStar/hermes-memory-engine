@@ -26,20 +26,18 @@ class AutonomousOrchestrator(Orchestrator, GoalRunner):
         self.insight_trigger = insight_trigger
         self._monitoring_task: Optional[asyncio.Task] = None
         self._is_running = False
-        self._start_lock = asyncio.Lock()
         self._processed_event_ids: OrderedDict[str, None] = OrderedDict()
         self._max_processed_ids = 10000
 
     async def start_monitoring(self, interval_seconds: int = 300, context: Dict[str, Any] = None):
         """Starts the background monitoring loop."""
-        async with self._start_lock:
-            if self._is_running:
-                logger.warning("Monitoring is already running.")
-                return
+        if self._is_running:
+            logger.warning("Monitoring is already running.")
+            return
 
-            self._is_running = True
-            self._monitoring_task = asyncio.create_task(self._monitoring_loop(interval_seconds, context or {}))
-            logger.info(f"Autonomous monitoring started with {interval_seconds}s interval.")
+        self._is_running = True
+        self._monitoring_task = asyncio.create_task(self._monitoring_loop(interval_seconds, context or {}))
+        logger.info(f"Autonomous monitoring started with {interval_seconds}s interval.")
 
     async def stop_monitoring(self):
         """Stops the background monitoring loop."""

@@ -14,6 +14,11 @@ def detector():
             MetricType.EDGE_WEIGHT: 0.1,
             MetricType.GRAPH_DENSITY: 0.8,
         },
+        z_score_thresholds={
+            MetricType.COMMUNITY_SIZE: 3.0,
+            MetricType.EDGE_WEIGHT: 3.0,
+            MetricType.GRAPH_DENSITY: 3.0,
+        },
         sensitivity_multiplier=1.0,
     )
     d.register_profile("global", profile)

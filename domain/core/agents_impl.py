@@ -33,22 +33,31 @@ class ResearcherAgent(HermesAgent):
 
     async def _reflect(self, findings: List[Dict[str, Any]], task: AgentTask, context: Dict[str, Any]) -> AgentResult:
         all_evidence = []
-        summary = "No relevant evidence found."
-        confidence = 0.0
-        has_error = False
+        best_summary = None
+        best_confidence = 0.0
+        errors = []
 
         for finding in findings:
             if finding["type"] == "memory_match":
                 results = finding["results"]
                 if results:
                     all_evidence.extend(r["text"] for r in results)
-                    if not has_error:
-                        summary = f"Found relevant information: {results[0]['text']}"
-                        confidence = max(confidence, 0.9)
+                    if best_confidence < 0.9:
+                        best_summary = f"Found relevant information: {results[0]['text']}"
+                        best_confidence = max(best_confidence, 0.9)
             elif finding["type"] == "error":
-                has_error = True
-                summary = finding["message"]
-                confidence = 0.0
+                errors.append(finding["message"])
+
+        # Prefer valid evidence over errors; only report errors if no evidence found
+        if best_summary:
+            summary = best_summary
+            confidence = best_confidence
+        elif errors:
+            summary = "; ".join(errors)
+            confidence = 0.0
+        else:
+            summary = "No relevant evidence found."
+            confidence = 0.0
 
         return AgentResult(
             finding=summary,

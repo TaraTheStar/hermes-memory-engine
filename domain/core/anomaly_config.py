@@ -12,12 +12,14 @@ class MetricType(Enum):
 @dataclass(frozen=True)
 class ThresholdProfile:
     """
-    A set of statistical thresholds and sensitivity settings 
+    A set of statistical thresholds and sensitivity settings
     tailored for a specific Bounded Context.
     """
     name: str
-    # Mapping of MetricType to its threshold value (e.g., sigma value or absolute limit)
+    # Absolute thresholds: flag when current_value > threshold (used in simple mode)
     thresholds: Dict[MetricType, float] = field(default_factory=dict)
+    # Z-score sigma cutoffs: flag when z_score > cutoff (used in complex/statistical mode)
+    z_score_thresholds: Dict[MetricType, float] = field(default_factory=dict)
     # Sensitivity multiplier: higher means more prone to triggering anomalies
     sensitivity_multiplier: float = 1.0
     # Minimum sample size required before statistics become valid

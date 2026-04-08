@@ -190,8 +190,7 @@ class SynthesisEngine:
                     common_words = words1.intersection(words2)
 
                     if common_words.intersection(self.symmetry_keywords) or \
-                       name1 in name2 or name2 in name1 or \
-                       (len(name1) >= 4 and len(name2) >= 4 and name1[:4] == name2[:4]):
+                       name1 in name2 or name2 in name1:
                         edge_key = (s1.id, s2.id)
                         if edge_key not in existing_edges:
                             self.ledger.add_edge(

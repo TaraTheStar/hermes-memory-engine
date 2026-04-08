@@ -49,17 +49,18 @@ async def run_stress_test():
                 session.add(skill)
             session.commit()
         
-        # Create a chain of edges
-        skills = session.query(Skill).all()
-        for i in range(len(skills) - 1):
-            edge = RelationalEdge(
-                source_id=skills[i].id,
-                target_id=skills[i+1].id,
-                relationship_type="connected_to",
-                weight=0.5
-            )
-            session.add(edge)
-        session.commit()
+        # Create a chain of edges (only if none exist yet)
+        if session.query(RelationalEdge).filter_by(relationship_type="connected_to").count() == 0:
+            skills = session.query(Skill).all()
+            for i in range(len(skills) - 1):
+                edge = RelationalEdge(
+                    source_id=skills[i].id,
+                    target_id=skills[i+1].id,
+                    relationship_type="connected_to",
+                    weight=0.5
+                )
+                session.add(edge)
+            session.commit()
     finally:
         session.close()
 

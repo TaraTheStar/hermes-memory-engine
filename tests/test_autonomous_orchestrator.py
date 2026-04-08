@@ -56,6 +56,27 @@ class TestStartStopMonitoring:
 
 
 class TestSemanticEventFiltering:
+    """Tests exercise the filtering logic by invoking _monitoring_loop body directly."""
+
+    @staticmethod
+    async def _run_one_iteration(orch, context=None):
+        """Run exactly one iteration of the monitoring loop, then stop."""
+        context = context or {}
+        orch._is_running = True
+        # Patch sleep to stop after one iteration
+        original_sleep = asyncio.sleep
+        call_count = 0
+        async def _stop_after_one(seconds):
+            nonlocal call_count
+            call_count += 1
+            orch._is_running = False
+            await original_sleep(0)
+        asyncio.sleep = _stop_after_one
+        try:
+            await orch._monitoring_loop(999, context)
+        finally:
+            asyncio.sleep = original_sleep
+
     @pytest.mark.asyncio
     async def test_milestone_event_triggers_goal(self, registry):
         mock_semantic = MagicMock()
@@ -69,18 +90,13 @@ class TestSemanticEventFiltering:
         orch = AutonomousOrchestrator(
             registry, semantic_memory=mock_semantic
         )
-        # Override run_goal to capture calls
         goals_run = []
         async def _capture_goal(goal, context):
             goals_run.append(goal)
             return {"orchestration_summary": {"aggregate_confidence": 0.9}}
         orch.run_goal = _capture_goal
 
-        # Run one iteration of the loop body manually
-        await orch.start_monitoring(interval_seconds=999)
-        # Give the loop one tick
-        await asyncio.sleep(0.2)
-        await orch.stop_monitoring()
+        await self._run_one_iteration(orch)
 
         assert len(goals_run) >= 1
         assert "evt_1" in orch._processed_event_ids
@@ -104,9 +120,7 @@ class TestSemanticEventFiltering:
             return {"orchestration_summary": {"aggregate_confidence": 0.9}}
         orch.run_goal = _capture_goal
 
-        await orch.start_monitoring(interval_seconds=999)
-        await asyncio.sleep(0.2)
-        await orch.stop_monitoring()
+        await self._run_one_iteration(orch)
 
         assert len(goals_run) >= 1
 
@@ -129,9 +143,7 @@ class TestSemanticEventFiltering:
             return {"orchestration_summary": {"aggregate_confidence": 0.9}}
         orch.run_goal = _capture_goal
 
-        await orch.start_monitoring(interval_seconds=999)
-        await asyncio.sleep(0.2)
-        await orch.stop_monitoring()
+        await self._run_one_iteration(orch)
 
         assert len(goals_run) == 0
 
@@ -156,8 +168,6 @@ class TestSemanticEventFiltering:
             return {"orchestration_summary": {"aggregate_confidence": 0.9}}
         orch.run_goal = _capture_goal
 
-        await orch.start_monitoring(interval_seconds=999)
-        await asyncio.sleep(0.2)
-        await orch.stop_monitoring()
+        await self._run_one_iteration(orch)
 
         assert len(goals_run) == 0

@@ -101,9 +101,9 @@ class ContextualAnomalyDetector:
         # 1. Check for Z-Score Breach (Reactive)
         if std_dev > 0:
             z_score = abs(current_value - mean) / std_dev
-            threshold = profile.thresholds.get(metric_type, 3.0)
-            
-            if z_score > (threshold * profile.sensitivity_multiplier):
+            z_threshold = profile.z_score_thresholds.get(metric_type, 3.0)
+
+            if z_score > (z_threshold * profile.sensitivity_multiplier):
                 return PatternDetectedEvent(
                     severity=EventSeverity.ERROR,
                     source="ContextualAnomalyDetector",

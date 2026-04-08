@@ -58,8 +58,16 @@ class Orchestrator:
                 raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
             tasks = json.loads(raw)
             if isinstance(tasks, list) and all(isinstance(t, dict) for t in tasks):
-                # Validate roles — drop unknown ones, ensure at least one task
-                valid = [t for t in tasks if t.get("role") in self.registry]
+                # Validate roles and field types — drop malformed entries
+                valid = []
+                for t in tasks:
+                    if t.get("role") not in self.registry:
+                        continue
+                    if not isinstance(t.get("goal"), str) or not t["goal"]:
+                        continue
+                    if "constraints" in t and not isinstance(t["constraints"], list):
+                        t["constraints"] = []
+                    valid.append(t)
                 if valid:
                     return valid[:self._max_concurrent_agents]
         except Exception as e:
@@ -100,8 +108,8 @@ class Orchestrator:
         The main entry point for executing a complex goal.
         Manages the parallel execution and synthesis of agent results.
         """
-        # Inject current refinements into context so agents can see them
-        context["refinements"] = self.refinement_registry.get_all()
+        # Work on a copy so we don't mutate the caller's dict
+        context = {**context, "refinements": self.refinement_registry.get_all()}
         
         tasks_data = await self.decompose_task(goal)
         
@@ -307,6 +315,12 @@ class Orchestrator:
                 logger.info("Meta-reflection: LLM determined no new role is needed.")
                 return
 
+            # Sanitize role_name: enforce length and character constraints
+            role_name = role_name.strip()[:64]
+            if not role_name.replace("_", "").replace("-", "").isalnum():
+                logger.warning("Meta-reflection: Invalid role name '%s' — must be alphanumeric/underscores.", role_name)
+                return
+
             if role_name in self.registry:
                 logger.info("Meta-reflection: Suggested role '%s' already exists.", role_name)
                 return
@@ -314,7 +328,11 @@ class Orchestrator:
             # Bootstrap the new role using ResearcherAgent as a general-purpose base.
             # A future iteration could select the base class from the suggestion.
             from domain.core.agents_impl import ResearcherAgent
+            logger.warning(
+                "Meta-reflection: Bootstrapping role '%s' with ResearcherAgent as base. "
+                "This role will behave identically to 'researcher' until a specialized "
+                "agent class is implemented.", role_name
+            )
             self.register_agent_role(role_name, ResearcherAgent)
-            logger.info("Meta-reflection: Bootstrapped new role '%s'.", role_name)
         except Exception as e:
             logger.warning("Meta-reflection failed: %s", e)

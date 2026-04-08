@@ -168,7 +168,7 @@ class TestSnapshotAnomalyDetector:
 
         current = _insert_snapshot(ledger, now, density=0.9, community_count=3)
         anomalies = detector.detect_anomalies(current)
-        if anomalies:
-            with ledger.session_scope() as session:
-                count = session.query(AnomalyEvent).count()
-                assert count >= len(anomalies)
+        assert len(anomalies) >= 1, "Expected at least one anomaly from density divergence"
+        with ledger.session_scope() as session:
+            count = session.query(AnomalyEvent).count()
+            assert count >= len(anomalies)

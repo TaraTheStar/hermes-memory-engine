@@ -63,6 +63,7 @@ def test_temporal_scan_skips_bad_timestamps(engine):
     )
     result = engine.run_temporal_correlation_scan()
     assert isinstance(result, int)
+    assert result == 0, "Bad-timestamp events should not produce edges"
 
 
 def test_temporal_scan_creates_edges(engine, ledger):

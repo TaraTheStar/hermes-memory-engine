@@ -5,7 +5,6 @@ logger = logging.getLogger(__name__)
 from domain.supporting.monitor_models import AnomalyEvent
 from domain.core.ports import GoalRunner
 from domain.supporting.ledger import StructuralLedger
-from domain.core.prompt_sanitizer import sanitize_field
 
 
 class InsightTrigger:
@@ -53,10 +52,9 @@ class InsightTrigger:
                     except Exception:
                         logger.exception("Goal runner failed for anomaly %s", anomaly_id)
                         continue
+                    anomaly.processed = True
                 else:
                     logger.warning("Could not generate goal for anomaly: %s", anomaly.anomaly_type)
-
-                anomaly.processed = True
 
     def _generate_goal_from_anomaly(self, anomaly: AnomalyEvent) -> str:
         """
@@ -66,9 +64,9 @@ class InsightTrigger:
         data = anomaly.trigger_data or {}
 
         if a_type == "HUB_EMERGENCE":
-            node_id = sanitize_field(str(data.get("node_id", "Unknown Node")), "node_id", max_length=200)
+            node_id = data.get("node_id", "Unknown Node")
             new_deg = data.get("new_degree", 0.0)
-            return (f"Investigate the sudden emergence of {node_id} as a significant hub. "
+            return (f"Investigate the sudden emergence of '{node_id}' as a significant hub. "
                     f"It has reached a degree centrality of {new_deg:.2f}. "
                     "Analyze its role in bridging disparate knowledge domains and its potential impact on overall connectivity.")
 
@@ -83,4 +81,4 @@ class InsightTrigger:
             return "Analyze the sudden change in graph density. Investigate if this indicates a rapid burst of knowledge ingestion or a potential structural instability."
 
         # Fallback generic goal
-        return f"Perform a deep structural audit in response to a detected {sanitize_field(str(a_type), 'anomaly_type', max_length=100)} event: {sanitize_field(str(anomaly.description), 'description', max_length=500)}"
+        return f"Perform a deep structural audit in response to a detected {a_type} event: {anomaly.description}"

@@ -14,14 +14,10 @@ class EventSeverity(Enum):
 class DomainEvent:
     """Base class for all events within a Bounded Context."""
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    event_id: str = field(default_factory=lambda: "") # Should be a UUID
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     severity: EventSeverity = EventSeverity.INFO
     source: str = "unknown"
     metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self):
-        if not self.event_id:
-            object.__setattr__(self, 'event_id', str(uuid.uuid4()))
 
 @dataclass(frozen=True)
 class InfrastructureErrorEvent(DomainEvent):

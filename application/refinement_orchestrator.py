@@ -44,11 +44,8 @@ class RefinementOrchestrator:
             if self._is_approved(audit_result):
                 logger.info("Proposal APPROVED by Auditor.")
                 # 2. Execution Phase
-                success = await self._execute_proposal(proposal)
-                if success:
-                    executed_count += 1
-                else:
-                    logger.warning("Proposal execution failed for: %s", proposal.proposal_type)
+                await self._execute_proposal(proposal)
+                executed_count += 1
             else:
                 logger.info("Proposal REJECTED by Auditor. Skipping.")
 
@@ -95,10 +92,9 @@ class RefinementOrchestrator:
                 return True
         return False
 
-    async def _execute_proposal(self, proposal: GraphRefinementProposal) -> bool:
+    async def _execute_proposal(self, proposal: GraphRefinementProposal):
         """
         Applies the change to the Structural Ledger.
-        Returns True if execution succeeded, False otherwise.
         """
         logger.info("Executing %s...", proposal.proposal_type)
         with self.ledger.session_scope() as session:
@@ -106,7 +102,7 @@ class RefinementOrchestrator:
                 parts = proposal.target_id.split("->", 1)
                 if len(parts) != 2:
                     logger.warning("Malformed edge target_id: %s", proposal.target_id)
-                    return False
+                    return
                 u, v = parts
                 session.query(RelationalEdge).filter(
                     (RelationalEdge.source_id == u) & (RelationalEdge.target_id == v)
@@ -118,12 +114,6 @@ class RefinementOrchestrator:
 
             elif proposal.proposal_type == "GLOBAL_REBALANCE":
                 logger.info("[SIMULATED] Global rebalancing triggered.")
-
-            else:
-                logger.warning("Unknown proposal type: %s", proposal.proposal_type)
-                return False
-
-        return True
 
 if __name__ == "__main__":
     import asyncio

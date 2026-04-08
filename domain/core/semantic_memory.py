@@ -38,17 +38,12 @@ class SemanticMemory:
         )
         return event_id
 
-    _MAX_QUERY_RESULTS = 500
-
     def query(self, query_text: str, n_results: int = 3, context_id: Optional[str] = None, min_similarity: float = 0.4) -> List[Dict[str, Any]]:
         """
         Performs semantic search to retrieve relevant past events, optionally scoped to a bounded context.
-        Includes a strict manual filter and a similarity threshold to prevent context leakage
+        Includes a strict manual filter and a similarity threshold to prevent context leakage 
         and semantic noise.
         """
-        if n_results < 1:
-            return []
-        n_results = min(n_results, self._MAX_QUERY_RESULTS)
         # We perform a wider semantic search to get candidates,
         # but we do NOT rely on ChromaDB's 'where' clause as the sole source of truth.
         search_limit = n_results * 5
@@ -90,8 +85,8 @@ class SemanticMemory:
         Lists the most recent events, optionally scoped to a bounded context.
         Results are sorted by timestamp descending (most recent first).
         """
-        # Fetch a wider set to account for context filtering reducing the count.
-        fetch_limit = limit * 5 if context_id else limit
+        # Fetch a wider set to account for filtering reducing the count.
+        fetch_limit = limit * 5
         results = self.collection.get(limit=fetch_limit)
         formatted_results = []
         for i in range(len(results['ids'])):

@@ -50,28 +50,29 @@ class Orchestrator:
         prompt += "Goal: " + sanitize_field(goal, "goal") + "\n\n"
         prompt += "Respond with a JSON array where each element has keys: 'role' (one of " + str(available_roles) + "), 'goal' (sub-task description), 'constraints' (list of strings). Return ONLY the JSON array."
         
-        try:
-            raw = await asyncio.to_thread(self.llm.complete, prompt)
-            # Extract JSON array from response (handle markdown fences)
-            raw = raw.strip()
-            if raw.startswith("```"):
-                raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-            tasks = json.loads(raw)
-            if isinstance(tasks, list) and all(isinstance(t, dict) for t in tasks):
-                # Validate roles and field types — drop malformed entries
-                valid = []
-                for t in tasks:
-                    if t.get("role") not in self.registry:
-                        continue
-                    if not isinstance(t.get("goal"), str) or not t["goal"]:
-                        continue
-                    if "constraints" not in t or not isinstance(t["constraints"], list):
-                        t["constraints"] = []
-                    valid.append(t)
-                if valid:
-                    return valid[:self._max_concurrent_agents]
-        except Exception as e:
-            logger.warning("LLM decomposition failed, falling back to heuristic: %s", e)
+            try:
+                raw = await self.llm.complete(prompt)
+                # Extract JSON array from response (handle markdown fences)
+                raw = raw.strip()
+                if raw.startswith("```"):
+                    raw = raw.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                tasks = json.loads(raw)
+                if isinstance(tasks, list) and all(isinstance(t, dict) for t in tasks):
+                    # Validate roles and field types — drop malformed entries
+                    valid = []
+                    for t in tasks:
+                        if t.get("role") not in self.registry:
+                            continue
+                        if not isinstance(t.get("goal"), str) or not t["goal"]:
+                            continue
+                        if "constraints" not in t or not isinstance(t["constraints"], list):
+                            t["constraints"] = []
+                        valid.append(t)
+                    if valid:
+                        return valid[:self._max_concurrent_agents]
+            except Exception as e:
+                logger.warning("LLM decomposition failed, falling back to heuristic: %s", e)
+                return self._heuristic_decompose(goal)
 
         return self._heuristic_decompose(goal)
 
@@ -255,7 +256,7 @@ class Orchestrator:
             prompt += "Respond with JSON: {'approved': true/false, 'reasoning': '...'}"
             
             try:
-                raw = await asyncio.to_thread(self.llm.complete, prompt)
+                raw = await self.llm.complete(prompt)
                 # Clean markdown if present
                 raw = raw.strip()
                 if raw.startswith("```"):

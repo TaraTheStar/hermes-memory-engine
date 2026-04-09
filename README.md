@@ -2,16 +2,22 @@
 
 A dual-layer memory engine that combines relational fact storage with vector-based semantic search. Hermes bridges structured knowledge (projects, milestones, skills, identity markers) with unstructured semantic events, enabling rich contextual recall and graph-based insight generation.
 
+**Now supporting both MCP (Model Context Protocol) and Native Hermes-Agent toolsets.**
+
 ## Features
 
-- **Structural Ledger** -- SQLite-backed relational storage for entities and relationships via SQLAlchemy
-- **Semantic Memory** -- ChromaDB vector store for embedding-based conceptual search
-- **Cross-Layer Bridge** -- Queries enrich semantic results with structural context and graph neighbors
-- **Graph Analysis** -- Centrality metrics, community detection, and bridge node identification via NetworkX
-- **Synthesis Engine** -- Automated edge creation through temporal correlation, semantic co-occurrence, and attribute symmetry scans
-- **Monitoring & Anomaly Detection** -- Periodic graph snapshots with statistical anomaly detection (hub emergence, community shifts)
-- **Agentic Orchestration** -- Multi-agent system with Researcher and Auditor agents that investigate detected anomalies via LLM
-- **Insight Synthesis** -- LLM-powered narrative reports translating graph metrics into human-readable insights
+- **Dual-Layer Architecture**
+  - **Structural Ledger** -- SQLite-backed relational storage for entities and relationships via SQLAlchemy.
+  - **Semantic Memory** -- ChromaDB vector store for embedding-based conceptual search.
+  - **Cross-Layer Bridge** -- Queries enrich semantic results with structural context and graph neighbors.
+- **Intelligence & Analysis**
+  - **Graph Analysis** -- Centrality metrics, community detection, and bridge node identification via NetworkX.
+  - **Synthesis Engine** -- Automated edge creation through temporal correlation, semantic co-occurrence, and attribute symmetry scans.
+  - **Insight Synthesis** -- LLM-powered narrative reports translating graph metrics into human-readable insights.
+  - **Monitoring & Anomaly Detection** -- Periodic graph snapshots with statistical anomaly detection (hub emergence, community shifts).
+- **Deployment Modes**
+  - **MCP Server** -- A standalone server providing memory capabilities to any MCP-compliant client.
+  - **Native Toolset** -- High-performance, direct-integration tools designed specifically for `hermes-agent`.
 
 ## Installation
 
@@ -29,6 +35,30 @@ For development (includes pytest):
 pip install -e ".[dev]"
 ```
 
+## Integration
+
+### 1. MCP Server (Standard)
+Run the server as a subprocess via MCP transport. Configure your client (e.g., `hermes-agent`) via the `mcp_servers` key in your config:
+
+```yaml
+mcp_servers:
+  hermes_memory:
+    command: "python"
+    args: ["/path/to/hermes-memory-engine/src/mcp_server.py"]
+    env:
+      HERMES_SEMANTIC_DIR: "/path/to/semantic"
+      HERMES_STRUCTURAL_DB: "/path/to/structure.db"
+```
+
+### 2. Native Toolset (High Performance)
+For direct integration into `hermes-agent`, import the toolset directly in your agent's initialization:
+
+```python
+from hermes_memory_engine.src.hermes_memory_tools import registry
+
+# The tools are automatically registered with the hermes-agent registry
+```
+
 ## Configuration
 
 ### Environment Variables
@@ -37,82 +67,18 @@ pip install -e ".[dev]"
 |---|---|---|
 | `HERMES_STRUCTURAL_DB` | Path to the SQLite database | `/data/hermes_memory_engine/structural/structure.db` |
 | `HERMES_SEMANTIC_DIR` | Path to the ChromaDB storage directory | `/data/hermes_memory_engine/semantic/chroma_db` |
-| `HERMES_CONFIG_PATH` | Path to the YAML config file | `/opt/data/config.yaml` |
-
-### Config File
-
-The config file provides LLM backend connection details. Create it at the path specified by `HERMES_CONFIG_PATH`:
-
-```yaml
-delegation:
-  base_url: "http://localhost:8080/v1"   # OpenAI-compatible endpoint
-  api_key: "your-api-key"
-  model: "your-model-name"
-```
-
-## Quick Start
-
-```python
-from application.engine import MemoryEngine
-
-# Initialize (uses env vars or defaults for paths)
-engine = MemoryEngine(
-    semantic_dir="/tmp/hermes_semantic",
-    structural_db_path="/tmp/hermes_structure.db"
-)
-
-# Add structural data
-proj_id = engine.ledger.add_project("My Project", "https://github.com/example/repo")
-ms_id = engine.ledger.add_milestone("First Release", "Shipped v1.0", project_id=proj_id)
-
-# Ingest an interaction (auto-extracts events via heuristic patterns)
-engine.ingest_interaction(
-    user_text="I finally completed the authentication module",
-    assistant_text="Great work on finishing that milestone!"
-)
-
-# Query with structural enrichment
-results = engine.query("authentication module")
-for r in results:
-    print(r["text"], r.get("structural_context"))
-```
-
-### Graph Analysis
-
-```python
-from domain.core.analyzer import GraphAnalyzer
-
-analyzer = GraphAnalyzer("/tmp/hermes_structure.db")
-analyzer.build_graph()
-
-metrics = analyzer.get_centrality_metrics()
-communities = analyzer.detect_communities()
-bridges = analyzer.get_bridge_nodes(top_n=3)
-```
-
-### Monitoring & Anomaly Detection
-
-```python
-from domain.supporting.monitor import StateTracker, SnapshotAnomalyDetector
-
-tracker = StateTracker("/tmp/hermes_structure.db")
-detector = SnapshotAnomalyDetector("/tmp/hermes_structure.db")
-
-snapshot = tracker.capture_snapshot()
-anomalies = detector.detect_anomalies(snapshot)
-```
 
 ## Architecture
 
 ```
 domain/
   core/
-    models.py              # SQLAlchemy ORM models (Project, Milestone, Skill, etc.)
-    semantic_memory.py     # Semantic Memory -- ChromaDB vector store wrapper
-    analyzer.py            # GraphAnalyzer -- centrality, communities, bridges
-    graph.py               # RelationshipGraph -- NetworkX graph wrapper
-    synthesis.py           # SynthesisEngine -- automated edge creation
-    synthesizer.py         # InsightSynthesizer -- LLM narrative report generation
+    models.py              # SQLAlchemy ORM models
+    semantic_memory.py     # ChromaDB vector store wrapper
+    analyzer.py            # GraphAnalyzer (centrality, communities, bridges)
+    graph.py               # RelationshipGraph wrapper
+    synthesis.py           # SynthesisEngine (automated edge creation)
+    synthesizer.py         # InsightSynthesizer (LLM narrative reports)
     insight_trigger.py     # Anomaly-to-orchestrator bridge
     agent.py               # Abstract agent base class
     agents_impl.py         # ResearcherAgent + AuditorAgent
@@ -123,47 +89,38 @@ domain/
     state_registry.py      # Context-aware state management
     semantic_ingestor.py   # LLM-powered semantic ingestion
     acl/                   # Anti-corruption layer translators
-    ports/                 # Domain ports (BaseLLMInterface, GoalRunner, IntelligenceIngestor)
+    ports/                 # Domain ports (BaseLLMInterface, GoalRunner, etc.)
   supporting/
-    ledger.py              # Structural Ledger -- CRUD for relational entities
+    ledger.py              # Structural Ledger (CRUD for relational entities)
     monitor.py             # StateTracker + AnomalyDetector
     monitor_models.py      # ORM models for snapshots and anomaly events
     config_loader.py       # YAML config loading
 
 application/
-  engine.py                # MemoryEngine -- ingestion, cross-layer query bridge
+  engine.py                # MemoryEngine (The primary entry point)
   orchestrator.py          # Agent lifecycle and goal decomposition
   autonomous_orchestrator.py # Autonomous orchestration with insight triggers
   refinement_orchestrator.py # Refinement proposal lifecycle
 
 infrastructure/
-  llm_interface.py         # Re-exports BaseLLMInterface from domain ports
+  llm_interface.py         # Re-exports BaseLLMInterface
   llm_implementations.py   # Local, Mock, OpenAI, and Template LLM backends
-  youtube_content.py       # YouTube transcript fetcher (standalone utility)
+  youtube_content.py       # YouTube transcript fetcher
 
-scripts/
+src/
+  mcp_server.py            # FastMCP implementation for MCP clients
+  hermes_memory_tools.py   # Native toolset for hermes-agent registry
+
+utils/
   execute_first_contact.py       # End-to-end integration demo
   stress_test_proactive_loop.py  # Anomaly detection stress test
   episodic_migration.py          # Batch migration from session logs
   test_llm_connectivity.py       # LLM backend connectivity check
 
 tests/
-  test_structural_bridge.py  # Cross-layer bridge tests
-  test_orchestration.py      # Mock orchestration tests
-  test_orchestration_real.py # Live LLM orchestration tests
-  test_ingestion_loop.py     # Recursive learning loop tests
-```
-
-## Running Tests
-
-```bash
-# Unit tests (no LLM required)
-python -m pytest tests/test_structural_bridge.py tests/test_orchestration.py
-
-# Integration test (requires LLM backend configured)
-python -m pytest tests/test_orchestration_real.py
+  ... (comprehensive test suite)
 ```
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE) for details.
+This project is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later).

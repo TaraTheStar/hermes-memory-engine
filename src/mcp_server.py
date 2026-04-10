@@ -32,12 +32,10 @@ engine = MemoryEngine(
 @mcp.tool()
 async def query_memory(query: str) -> str:
     """
-    Perform a semantic search across the memory engine and return 
+    Perform a semantic search across the memory engine and return
     results enriched with structural context.
     """
-    # The engine is synchronous, so we run it in a thread to avoid blocking the event loop
-    loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(None, lambda: engine.query(query))
+    results = await asyncio.to_thread(engine.query, query)
     
     if not results:
         return "No relevant memories found."
@@ -56,13 +54,10 @@ async def ingest_interaction(user_text: str, assistant_text: str) -> str:
     Ingest a new interaction (user message and assistant response) into memory.
     The engine will automatically extract facts and events.
     """
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(
-        None, 
-        lambda: engine.ingest_interaction(
-            user_text=user_text,
-            assistant_text=assistant_text
-        )
+    await asyncio.to_thread(
+        engine.ingest_interaction,
+        user_text=user_text,
+        assistant_text=assistant_text,
     )
     return "Interaction successfully ingested and processed."
 
@@ -71,11 +66,7 @@ async def add_project(name: str, url: str = None) -> str:
     """
     Add a new project to the structural ledger.
     """
-    loop = asyncio.get_event_loop()
-    proj_id = await loop.run_in_executor(
-        None, 
-        lambda: engine.ledger.add_project(name, url) if url else engine.ledger.add_project(name, "")
-    )
+    proj_id = await asyncio.to_thread(engine.ledger.add_project, name, url or "")
     return f"Project '{name}' added with ID: {proj_id}"
 
 @mcp.tool()
@@ -83,10 +74,8 @@ async def add_milestone(project_id: int, name: str, description: str) -> str:
     """
     Add a milestone to an existing project.
     """
-    loop = asyncio.get_event_loop()
-    ms_id = await loop.run_in_executor(
-        None,
-        lambda: engine.ledger.add_milestone(name, description, project_id=project_id)
+    ms_id = await asyncio.to_thread(
+        engine.ledger.add_milestone, name, description, project_id=project_id
     )
     return f"Milestone '{name}' added to project {project_id} with ID: {ms_id}"
 
@@ -98,33 +87,31 @@ async def get_knowledge_graph_insights() -> str:
     """
     from domain.core.analyzer import GraphAnalyzer
     
-    loop = asyncio.get_event_loop()
-    
     def analyze():
         analyzer = GraphAnalyzer(STRUCTURAL_DB)
         analyzer.build_graph()
-        
+
         metrics = analyzer.get_centrality_metrics()
         communities = analyzer.detect_communities()
         bridges = analyzer.get_bridge_nodes(top_n=3)
-        
+
         report = ["### Knowledge Graph Insights"]
-        
+
         report.append("\n#### Top Central Nodes:")
         for node, score in list(metrics.items())[:5]:
             report.append(f"- {node}: {score:.4f}")
-            
+
         report.append("\n#### Communities Detected:")
         for i, comm in enumerate(communities):
             report.append(f"- Community {i+1}: {', '.join(map(str, comm[:10]))}...")
-            
+
         report.append("\n#### Key Bridge Nodes (Connecting Domains):")
         for b in bridges:
             report.append(f"- {b}")
-            
+
         return "\n".join(report)
 
-    return await loop.run_in_executor(None, analyze)
+    return await asyncio.to_thread(analyze)
 
 if __name__ == "__main__":
     mcp.run()

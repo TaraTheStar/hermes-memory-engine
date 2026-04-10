@@ -42,16 +42,24 @@ class Orchestrator:
 
         return self._heuristic_decompose(goal)
 
+    _LLM_DECOMPOSE_MAX_RETRIES = 2
+
     async def _llm_decompose(self, goal: str) -> List[Dict[str, Any]]:
-        """Uses the LLM to decompose a goal into role-tagged sub-tasks."""
+        """Uses the LLM to decompose a goal into role-tagged sub-tasks.
+
+        Retries up to ``_LLM_DECOMPOSE_MAX_RETRIES`` times on transient
+        failures before falling back to heuristic decomposition.
+        """
         available_roles = list(self.registry.keys())
         prompt = "Break the following goal into sub-tasks. "
         prompt += "Available agent roles: " + str(available_roles) + ".\n\n"
         prompt += "Goal: " + sanitize_field(goal, "goal") + "\n\n"
         prompt += "Respond with a JSON array where each element has keys: 'role' (one of " + str(available_roles) + "), 'goal' (sub-task description), 'constraints' (list of strings). Return ONLY the JSON array."
-        
+
+        last_error = None
+        for attempt in range(1, self._LLM_DECOMPOSE_MAX_RETRIES + 1):
             try:
-                raw = await self.llm.complete(prompt)
+                raw = await asyncio.to_thread(self.llm.complete, prompt)
                 # Extract JSON array from response (handle markdown fences)
                 raw = raw.strip()
                 if raw.startswith("```"):
@@ -70,39 +78,75 @@ class Orchestrator:
                         valid.append(t)
                     if valid:
                         return valid[:self._max_concurrent_agents]
+                logger.warning("LLM decomposition attempt %d returned no valid tasks", attempt)
             except Exception as e:
-                logger.warning("LLM decomposition failed, falling back to heuristic: %s", e)
-                return self._heuristic_decompose(goal)
+                last_error = e
+                logger.warning("LLM decomposition attempt %d failed: %s", attempt, e)
 
+        logger.warning("LLM decomposition exhausted %d retries (last error: %s), falling back to heuristic",
+                        self._LLM_DECOMPOSE_MAX_RETRIES, last_error)
         return self._heuristic_decompose(goal)
+
+    # Keyword-to-role mapping for heuristic decomposition.
+    # Each entry: (keywords, tasks_template) where tasks_template is a list of
+    # (role, goal_template, constraints) tuples.  "{goal}" is replaced with the
+    # sanitised goal text.
+    _HEURISTIC_RULES = [
+        (
+            {"audit", "verify", "validate", "check", "integrity"},
+            [
+                ("auditor", "Validate the structural integrity of the target entity.", ["check existence", "validate relationship"]),
+                ("researcher", "Investigate semantic context and background information.", ["retrieve historical evidence"]),
+            ],
+        ),
+        (
+            {"research", "find", "search", "explore", "investigate", "discover"},
+            [
+                ("researcher", "Conduct deep dive into: {goal}", ["provide high-confidence evidence"]),
+            ],
+        ),
+        (
+            {"summarize", "describe", "explain", "overview", "report"},
+            [
+                ("researcher", "Gather relevant information for: {goal}", ["collect comprehensive evidence"]),
+                ("auditor", "Verify accuracy of gathered information.", ["cross-reference sources"]),
+            ],
+        ),
+        (
+            {"compare", "contrast", "difference", "versus"},
+            [
+                ("researcher", "Research each subject in: {goal}", ["gather comparable data points"]),
+                ("auditor", "Validate the comparison criteria and results.", ["ensure fair comparison"]),
+            ],
+        ),
+    ]
 
     def _heuristic_decompose(self, goal: str) -> List[Dict[str, Any]]:
         """Keyword-based fallback for goal decomposition."""
         goal_lower = goal.lower()
+        safe_goal = sanitize_field(goal, "goal")
 
-        if "audit" in goal_lower or "verify" in goal_lower:
-            return [
-                {
-                    "role": "auditor",
-                    "goal": "Validate the structural integrity of the target entity.",
-                    "constraints": ["check existence", "validate relationship"]
-                },
-                {
-                    "role": "researcher",
-                    "goal": "Investigate semantic context and background information.",
-                    "constraints": ["retrieve historical evidence"]
-                }
-            ]
-        elif "research" in goal_lower or "find" in goal_lower:
-            return [
-                {
-                    "role": "researcher",
-                    "goal": "Conduct deep dive into: " + sanitize_field(goal, "goal"),
-                    "constraints": ["provide high-confidence evidence"]
-                }
-            ]
+        for keywords, template in self._HEURISTIC_RULES:
+            if any(kw in goal_lower for kw in keywords):
+                # Only emit tasks for roles that are actually registered
+                tasks = []
+                for role, goal_tmpl, constraints in template:
+                    if role in self.registry:
+                        tasks.append({
+                            "role": role,
+                            "goal": goal_tmpl.replace("{goal}", safe_goal),
+                            "constraints": constraints,
+                        })
+                if tasks:
+                    return tasks
 
-        return [{"role": "researcher", "goal": sanitize_field(goal, "goal"), "constraints": []}]
+        # Default: use every registered role with the original goal
+        if len(self.registry) > 1:
+            return [
+                {"role": role, "goal": safe_goal, "constraints": []}
+                for role in list(self.registry.keys())[:self._max_concurrent_agents]
+            ]
+        return [{"role": list(self.registry.keys())[0], "goal": safe_goal, "constraints": []}]
 
     async def run_goal(self, goal: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -254,9 +298,9 @@ class Orchestrator:
             prompt += "Proposed State: " + sanitize_field(proposal.proposed_state, "proposed_state") + "\n"
             prompt += "Rationale: " + sanitize_field(proposal.rationale, "rationale") + "\n\n"
             prompt += "Respond with JSON: {'approved': true/false, 'reasoning': '...'}"
-            
+
             try:
-                raw = await self.llm.complete(prompt)
+                raw = await asyncio.to_thread(self.llm.complete, prompt)
                 # Clean markdown if present
                 raw = raw.strip()
                 if raw.startswith("```"):

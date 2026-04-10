@@ -49,8 +49,7 @@ async def handle_query_memory(args: dict, **kwargs) -> str:
     if not query:
         return tool_error("Missing required parameter: 'query'")
     
-    loop = asyncio.get_event_loop()
-    results = await loop.run_in_executor(None, lambda: engine.query(query))
+    results = await asyncio.to_thread(engine.query, query)
     
     if not results:
         return tool_result({"message": "No relevant memories found."})
@@ -71,13 +70,10 @@ async def handle_ingest_interaction(args: dict, **kwargs) -> str:
     if not user_text or not assistant_text:
         return tool_error("Both 'user_text' and 'assistant_text' are required.")
     
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(
-        None, 
-        lambda: engine.ingest_interaction(
-            user_text=user_text,
-            assistant_text=assistant_text
-        )
+    await asyncio.to_thread(
+        engine.ingest_interaction,
+        user_text=user_text,
+        assistant_text=assistant_text,
     )
     return tool_result({"status": "success", "message": "Interaction ingested."})
 
@@ -89,11 +85,7 @@ async def handle_add_project(args: dict, **kwargs) -> str:
     if not name:
         return tool_error("Missing required parameter: 'name'")
     
-    loop = asyncio.get_event_loop()
-    proj_id = await loop.run_in_executor(
-        None, 
-        lambda: engine.ledger.add_project(name, url)
-    )
+    proj_id = await asyncio.to_thread(engine.ledger.add_project, name, url)
     return tool_result({"status": "success", "project_id": proj_id, "name": name})
 
 async def handle_add_milestone(args: dict, **kwargs) -> str:
@@ -105,10 +97,8 @@ async def handle_add_milestone(args: dict, **kwargs) -> str:
     if project_id is None or not name:
         return tool_error("Both 'project_id' and 'name' are required.")
     
-    loop = asyncio.get_event_loop()
-    ms_id = await loop.run_in_executor(
-        None,
-        lambda: engine.ledger.add_milestone(name, description, project_id=int(project_id))
+    ms_id = await asyncio.to_thread(
+        engine.ledger.add_milestone, name, description, project_id=int(project_id)
     )
     return tool_result({"status": "success", "milestone_id": ms_id, "name": name})
 
@@ -116,15 +106,13 @@ async def handle_get_insights(args: dict, **kwargs) -> str:
     """Handler for getting graph insights."""
     from domain.core.analyzer import GraphAnalyzer
     
-    loop = asyncio.get_event_loop()
-    
     def analyze():
         analyzer = GraphAnalyzer(STRUCTURAL_DB)
         analyzer.build_graph()
         metrics = analyzer.get_centrality_metrics()
         communities = analyzer.detect_communities()
         bridges = analyzer.get_bridge_nodes(top_n=3)
-        
+
         report = ["### Knowledge Graph Insights"]
         report.append("\n#### Top Central Nodes:")
         for node, score in list(metrics.items())[:5]:
@@ -137,7 +125,7 @@ async def handle_get_insights(args: dict, **kwargs) -> str:
             report.append(f"- {b}")
         return "\n".join(report)
 
-    insight_text = await loop.run_in_executor(None, analyze)
+    insight_text = await asyncio.to_thread(analyze)
     return tool_result({"insights": insight_text})
 
 # ---------------------------------------------------------------------------

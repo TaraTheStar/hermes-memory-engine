@@ -21,7 +21,12 @@ RUN mkdir -p /data/hermes_memory_engine/structural \
              /data/hermes_memory_engine/semantic/chroma_db
 
 ENV PYTHONUNBUFFERED=1
-ENV HERMES_CONFIG_PATH=/app/config.yaml
+ENV HERMES_HOME=/opt/data
 
-# Default: run test suite. Override CMD for other entrypoints.
-CMD ["python3", "-m", "pytest", "tests/", "-v"]
+# Default: run MCP server. Override CMD for other entrypoints:
+#   docker run <image> test       — run the test suite
+#   docker run <image> mcp        — run the MCP server (default)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["mcp"]

@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from domain.supporting.ledger import StructuralLedger
-from domain.core.models import Project, Skill, IdentityMarker
+from domain.core.models import Project, Skill, IdentityMarker, RelationalEdge
 
 
 @pytest.fixture
@@ -90,3 +92,49 @@ class TestGetAllMilestones:
         ledger.add_milestone("M1", "d1")
         ledger.add_milestone("M2", "d2")
         assert len(ledger.get_all_milestones()) == 2
+
+
+class TestPruneStaleEdges:
+    def _add_aged_edge(self, ledger, source, target, weight, age_days):
+        """Add an edge and backdate its created_at."""
+        eid = ledger.add_edge(source, target, "test", weight=weight)
+        with ledger.session_scope() as s:
+            edge = s.query(RelationalEdge).filter_by(id=eid).one()
+            edge.created_at = datetime.now(timezone.utc) - timedelta(days=age_days)
+        return eid
+
+    def test_prunes_old_low_weight(self, ledger):
+        s1 = ledger.add_skill("A", "a")
+        s2 = ledger.add_skill("B", "b")
+        self._add_aged_edge(ledger, s1, s2, weight=0.2, age_days=100)
+        assert ledger.count_edges() == 1
+        pruned = ledger.prune_stale_edges(max_age_days=90, min_weight=0.5)
+        assert pruned == 1
+        assert ledger.count_edges() == 0
+
+    def test_keeps_recent_low_weight(self, ledger):
+        s1 = ledger.add_skill("C", "c")
+        s2 = ledger.add_skill("D", "d")
+        ledger.add_edge(s1, s2, "test", weight=0.2)
+        pruned = ledger.prune_stale_edges(max_age_days=90, min_weight=0.5)
+        assert pruned == 0
+        assert ledger.count_edges() == 1
+
+    def test_keeps_old_high_weight(self, ledger):
+        s1 = ledger.add_skill("E", "e")
+        s2 = ledger.add_skill("F", "f")
+        self._add_aged_edge(ledger, s1, s2, weight=0.9, age_days=100)
+        pruned = ledger.prune_stale_edges(max_age_days=90, min_weight=0.5)
+        assert pruned == 0
+
+    def test_hard_cap_removes_weakest(self, ledger):
+        s1 = ledger.add_skill("G", "g")
+        s2 = ledger.add_skill("H", "h")
+        s3 = ledger.add_skill("I", "i")
+        ledger.add_edge(s1, s2, "test", weight=0.9)
+        ledger.add_edge(s1, s3, "test", weight=0.1)
+        ledger.add_edge(s2, s3, "test", weight=0.5)
+        assert ledger.count_edges() == 3
+        pruned = ledger.prune_stale_edges(max_age_days=9999, min_weight=0.0, max_edges=2)
+        assert pruned == 1
+        assert ledger.count_edges() == 2

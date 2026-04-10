@@ -1,8 +1,11 @@
+import logging
 import os
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session as SASession
@@ -124,6 +127,60 @@ class StructuralLedger:
                 marker = IdentityMarker(id=i_id, key=key, value=value, confidence_score=confidence)
                 s.add(marker)
             return marker.id
+
+    def count_edges(self, relationship_type: Optional[str] = None, session: Optional[SASession] = None) -> int:
+        """Return the total number of edges, optionally filtered by type."""
+        with self._use_session(session) as s:
+            q = s.query(RelationalEdge)
+            if relationship_type:
+                q = q.filter_by(relationship_type=relationship_type)
+            return q.count()
+
+    def prune_stale_edges(self, max_age_days: int = 90, min_weight: float = 0.5,
+                          max_edges: int = 10000, session: Optional[SASession] = None) -> int:
+        """Remove low-value edges to keep the graph bounded.
+
+        Pruning strategy (applied in order):
+        1. Delete edges older than *max_age_days* with weight below *min_weight*.
+        2. If total edge count still exceeds *max_edges*, delete the oldest
+           lowest-weight edges until the cap is met.
+
+        Returns the number of edges deleted.
+        """
+        from datetime import timedelta
+        cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+        deleted = 0
+
+        with self._use_session(session) as s:
+            # Phase 1: age + weight filter
+            stale = s.query(RelationalEdge).filter(
+                RelationalEdge.created_at < cutoff,
+                RelationalEdge.weight < min_weight,
+            ).all()
+            for edge in stale:
+                s.delete(edge)
+                deleted += 1
+
+            s.flush()
+
+            # Phase 2: hard cap on total edges
+            total = s.query(RelationalEdge).count()
+            if total > max_edges:
+                excess = total - max_edges
+                weakest = (
+                    s.query(RelationalEdge)
+                    .order_by(RelationalEdge.weight.asc(), RelationalEdge.created_at.asc())
+                    .limit(excess)
+                    .all()
+                )
+                for edge in weakest:
+                    s.delete(edge)
+                    deleted += 1
+
+        if deleted:
+            logger.info("Pruned %d stale/excess edges (age cutoff=%d days, weight<%s, cap=%d)",
+                        deleted, max_age_days, min_weight, max_edges)
+        return deleted
 
     def get_all_milestones(self, session: Optional[SASession] = None) -> List[Dict[str, Any]]:
         with self._use_session(session) as s:

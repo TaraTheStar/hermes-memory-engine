@@ -28,9 +28,10 @@ async def test_goal_decomposition_and_execution(orchestrator):
 
 @pytest.mark.asyncio
 async def test_single_task_goal(orchestrator):
-    """Test a simple goal that doesn't trigger decomposition (falls back to single researcher)."""
+    """Test a generic goal dispatches all registered roles as fallback."""
     goal = "What is the current zeitgeist?"
     result = await orchestrator.run_goal(goal, {})
 
-    assert result["orchestration_summary"]["agents_dispatched"] == 1
-    assert len(result["agent_findings"]) == 1
+    # Default heuristic dispatches all registered roles for unrecognized goals
+    assert result["orchestration_summary"]["agents_dispatched"] == 2
+    assert len(result["agent_findings"]) == 2

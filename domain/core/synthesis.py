@@ -11,6 +11,11 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_SYMMETRY_KEYWORDS: Set[str] = {'python', 'javascript', 'rust', 'coding'}
 
+# Pruning defaults
+DEFAULT_MAX_EDGE_AGE_DAYS = 90
+DEFAULT_MIN_EDGE_WEIGHT = 0.5
+DEFAULT_MAX_EDGES = 10000
+
 class SynthesisEngine:
     _TEMPORAL_WATERMARK_KEY = "_synthesis_last_temporal_scan"
     _COOCCURRENCE_WATERMARK_KEY = "_synthesis_last_cooccurrence_scan"
@@ -18,7 +23,10 @@ class SynthesisEngine:
     _MOTIF_WATERMARK_KEY = "_synthesis_last_motif_scan"
     _MOTIF_PATTERN_KEY = "_synthesis_discovered_motifs"
     def __init__(self, semantic_dir: str, structural_db_path_or_ledger,
-                 symmetry_keywords: Optional[Set[str]] = None):
+                 symmetry_keywords: Optional[Set[str]] = None,
+                 max_edge_age_days: int = DEFAULT_MAX_EDGE_AGE_DAYS,
+                 min_edge_weight: float = DEFAULT_MIN_EDGE_WEIGHT,
+                 max_edges: int = DEFAULT_MAX_EDGES):
         self.semantic_memory = SemanticMemory(semantic_dir)
         if isinstance(structural_db_path_or_ledger, StructuralLedger):
             self.ledger = structural_db_path_or_ledger
@@ -33,6 +41,11 @@ class SynthesisEngine:
             else:
                 self.symmetry_keywords = DEFAULT_SYMMETRY_KEYWORDS
                 self._save_keywords(self.symmetry_keywords)
+
+        # Pruning configuration
+        self._max_edge_age_days = max_edge_age_days
+        self._min_edge_weight = min_edge_weight
+        self._max_edges = max_edges
 
         # High-water marks for incremental scanning (per scan type).
         self._last_temporal_scan: Optional[datetime] = self._load_watermark(self._TEMPORAL_WATERMARK_KEY)
@@ -301,6 +314,69 @@ class SynthesisEngine:
             self._last_cooccurrence_scan = scan_start
         return new_edges_count
 
+    def run_attribute_symmetry_scan(self) -> int:
+        """
+        Scans skills for attribute-level similarity using symmetry keywords
+        and substring containment. Creates edges between related skills.
+
+        Phase B: Attribute Symmetry
+        Two skills are linked when they share a symmetry keyword or one name
+        is a substring of the other.
+        """
+        new_edges_count = 0
+
+        with self.ledger.session_scope() as session:
+            skills = session.query(Skill).all()
+            if len(skills) < 2:
+                return 0
+
+            # Pre-load existing attribute_symmetry edges for dedup
+            existing_edges: set = set()
+            for e in session.query(
+                RelationalEdge.source_id, RelationalEdge.target_id
+            ).filter_by(relationship_type="attribute_symmetry").all():
+                existing_edges.add((e.source_id, e.target_id))
+                existing_edges.add((e.target_id, e.source_id))
+
+            for i in range(len(skills)):
+                for j in range(i + 1, len(skills)):
+                    s1, s2 = skills[i], skills[j]
+                    edge_key = (s1.id, s2.id)
+                    if edge_key in existing_edges:
+                        continue
+
+                    name1 = s1.name.lower()
+                    name2 = s2.name.lower()
+
+                    # Check substring containment
+                    matched = name1 in name2 or name2 in name1
+
+                    # Check symmetry keyword overlap
+                    if not matched:
+                        words1 = set(name1.split())
+                        words2 = set(name2.split())
+                        shared = (words1 | words2) & {kw.lower() for kw in self.symmetry_keywords}
+                        matched = bool(words1 & shared and words2 & shared)
+
+                    if matched:
+                        try:
+                            nested = session.begin_nested()
+                            self.ledger.add_edge(
+                                source_id=s1.id,
+                                target_id=s2.id,
+                                relationship_type="attribute_symmetry",
+                                weight=0.8,
+                                session=session,
+                            )
+                            nested.commit()
+                            existing_edges.add(edge_key)
+                            new_edges_count += 1
+                        except Exception as e:
+                            nested.rollback()
+                            logger.warning("Failed to add symmetry edge %s->%s: %s", s1.id, s2.id, e)
+
+        return new_edges_count
+
     def run_motif_detection_scan(self) -> int:
         """
         Scans for recurring structural patterns (motifs) in the relational graph.
@@ -370,3 +446,24 @@ class SynthesisEngine:
             self._last_motif_scan = scan_start
 
         return new_motifs_count
+
+    def prune(self) -> int:
+        """Run edge pruning using the configured limits."""
+        return self.ledger.prune_stale_edges(
+            max_age_days=self._max_edge_age_days,
+            min_weight=self._min_edge_weight,
+            max_edges=self._max_edges,
+        )
+
+    def run_full_cycle(self, window_minutes: int = 60,
+                       temporal_threshold: float = 0.6,
+                       cooccurrence_threshold: float = 0.7) -> Dict[str, int]:
+        """Run all synthesis scans followed by pruning. Returns per-phase counts."""
+        results = {
+            "temporal_edges": self.run_temporal_correlation_scan(window_minutes, temporal_threshold),
+            "cooccurrence_edges": self.run_semantic_cooccurrence_scan(cooccurrence_threshold),
+            "motifs": self.run_motif_detection_scan(),
+            "pruned": self.prune(),
+        }
+        logger.info("Synthesis cycle complete: %s", results)
+        return results

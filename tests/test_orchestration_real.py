@@ -6,8 +6,8 @@ from infrastructure.llm_implementations import OpenAIImplementation
 from domain.core.agents_impl import ResearcherAgent, AuditorAgent
 
 pytestmark = pytest.mark.skipif(
-    not (os.environ.get("HERMES_CONFIG_PATH") or os.path.exists("/opt/data/config.yaml")),
-    reason="Requires LLM config",
+    not (os.environ.get("HERMES_HOME") or os.path.isfile(os.path.expanduser("~/.hermes/config.yaml"))),
+    reason="Requires LLM config (set HERMES_HOME or ensure ~/.hermes/config.yaml exists)",
 )
 
 

@@ -7,13 +7,29 @@ from domain.core.acl.storage_translator import StorageTranslator
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONFIG_PATH = os.environ.get('HERMES_CONFIG_PATH', '/opt/data/config.yaml')
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _default_config_path() -> str:
+    """Resolve the config path from HERMES_HOME, falling back to ~/.hermes."""
+    hermes_home = os.environ.get("HERMES_HOME")
+    if hermes_home:
+        return os.path.join(hermes_home, "config.yaml")
+    home_dir = os.path.expanduser("~/.hermes")
+    if os.path.isfile(os.path.join(home_dir, "config.yaml")):
+        return os.path.join(home_dir, "config.yaml")
+    # Final fallback for backwards compatibility
+    return os.path.join(_PROJECT_ROOT, "config.yaml")
+
+
+DEFAULT_CONFIG_PATH = _default_config_path()
 
 # Directories the config file is allowed to reside in.
 _ALLOWED_ROOTS = (
     "/opt/data",
     "/data",
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # project root
+    os.path.expanduser("~/.hermes"),
+    _PROJECT_ROOT,
 )
 
 
@@ -44,7 +60,8 @@ class ConfigLoader:
         if not os.path.exists(self.config_path):
             raise FileNotFoundError(
                 f"Configuration file not found at {self.config_path}. "
-                f"Set the HERMES_CONFIG_PATH environment variable to specify a custom path."
+                f"Set the HERMES_HOME environment variable to your hermes-agent config directory "
+                f"(e.g. ~/.hermes) or ensure config.yaml exists there."
             )
 
         # Warn if the config file (which may contain API keys) is world-readable

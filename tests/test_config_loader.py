@@ -19,7 +19,7 @@ def _config_dir():
 
 def test_missing_config_file_raises(_config_dir):
     """Missing config file should raise FileNotFoundError with helpful message."""
-    with pytest.raises(FileNotFoundError, match="HERMES_CONFIG_PATH"):
+    with pytest.raises(FileNotFoundError, match="HERMES_HOME"):
         ConfigLoader(os.path.join(_config_dir, "nonexistent.yaml"))
 
 

@@ -100,14 +100,25 @@ class MemoryEngine:
                 structural_id = instr.get('structural_id')
                 
                 if event:
-                    metadata = event.to_dict()
-                    if structural_id:
-                        metadata['structural_id'] = structural_id
-                    
-                    self.semantic_memory.add_event(
-                        text=event.text,
-                        metadata=metadata
-                    )
+                    # Check if it is a ReasoningTrace to handle specific metadata
+                    if hasattr(event, 'topic'): # This works if it's the class instance
+                        metadata = event.to_dict()
+                        if structural_id:
+                            metadata['structural_id'] = structural_id
+                        
+                        self.semantic_memory.add_event(
+                            text=event.text,
+                            metadata=metadata
+                        )
+                    else:
+                        metadata = event.to_dict()
+                        if structural_id:
+                            metadata['structural_id'] = structural_id
+                        
+                        self.semantic_memory.add_event(
+                            text=event.text,
+                            metadata=metadata
+                        )
 
         # Automated detection step
         all_text = f"User: {user_text}\nAssistant: {assistant_text}"

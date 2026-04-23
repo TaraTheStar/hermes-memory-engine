@@ -25,18 +25,28 @@ class SemanticMemory:
         A shallow copy of *metadata* is made so the caller's dict is never mutated.
         """
         event_id = f"evt_{uuid.uuid4().hex}"
-        metadata = {**metadata, "timestamp": datetime.now(timezone.utc).isoformat()}
+        
+        # Sanitize metadata for ChromaDB (only allow primitive types)
+        sanitized_metadata = {}
+        for k, v in metadata.items():
+            if isinstance(v, (str, int, float, bool)):
+                sanitized_metadata[k] = v
+            elif v is None:
+                sanitized_metadata[k] = ""
+            # Ignore complex types like dicts or lists to avoid ChromaDB TypeError
+
+        sanitized_metadata["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         if structural_id:
-            metadata["structural_id"] = structural_id
+            sanitized_metadata["structural_id"] = structural_id
 
         if context_id:
-            metadata["context_id"] = context_id
+            sanitized_metadata["context_id"] = context_id
 
         self.collection.add(
             ids=[event_id],
             documents=[text],
-            metadatas=[metadata]
+            metadatas=[sanitized_metadata]
         )
         return event_id
 

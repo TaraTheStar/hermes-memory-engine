@@ -22,6 +22,17 @@ class Event:
             **self.metadata
         }
 
+class ReasoningTrace(Event):
+    def __init__(self, topic: str, logic: str, archetype: str, structural_link: str = None):
+        text = f"[REASONING_TRACE] Topic: {topic}\nLogic: {logic}"
+        metadata = {
+            "topic": topic,
+            "logic": logic,
+            "archetype": archetype,
+            "structural_link": structural_link
+        }
+        super().__init__(text=text, event_type="reasoning", metadata=metadata)
+
 class Project(Base):
     __tablename__ = 'projects'
 

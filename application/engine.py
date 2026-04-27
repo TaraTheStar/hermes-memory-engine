@@ -1,14 +1,17 @@
 import os
+import re
+import asyncio
 from typing import List, Dict, Any, Optional
+
 from domain.core.semantic_memory import SemanticMemory
 from domain.core.models import Event, Project, Milestone, Skill, IdentityMarker, RelationalEdge
 from infrastructure.paths import default_semantic_dir, default_structural_db
 
-# Note: In a real deployment, EventExtractor would call an LLM API.
-# Here, I am designing the interface so that I (the agent) can 
-# utilize it to automate my own memory updates.
-
-import re
+# Import Graph components for integration
+from domain.core.graph import KnowledgeGraph
+from domain.core.graph_extractor import GraphExtractor
+from application.graph_manager import GraphManager
+from infrastructure.llm_implementations import LocalLLMImplementation # Assuming this is the default/available one
 
 class EventExtractor:
     """
@@ -85,15 +88,25 @@ class MemoryEngine:
         from domain.supporting.ledger import StructuralLedger
         self.ledger = StructuralLedger(structural_db_path)
 
+        # Initialize Graph Intelligence
+        self.llm = LocalLLMImplementation()
+        self.graph_extractor = GraphExtractor(self.llm)
+        self.graph_manager = GraphManager(self, self.graph_extractor)
+
     _MAX_INPUT_LENGTH = 50_000
 
-    def ingest_interaction(self, user_text: str, assistant_text: str, instructions: Optional[List[Dict[str, Any]]] = None):
+    async def ingest_interaction(self, user_text: str, assistant_text: str, instructions: Optional[List[Dict[str, Any]]] = None):
         """
         Processes an interaction and stores discovered events.
         Instructions can include a list of dicts with 'event' (Event object) and optional 'structural_id'.
         """
         user_text = (user_text or "")[:self._MAX_INPUT_LENGTH]
         assistant_text = (assistant_text or "")[:self._MAX_INPUT_LENGTH]
+        
+        # 1. Perform Graph Extraction (Perceptual Vector)
+        # We do this first so that the semantic knowledge is available for any subsequent logic
+        await self.graph_manager.update_from_interaction(user_text, assistant_text)
+
         if instructions:
             for instr in instructions:
                 event = instr.get('event')
